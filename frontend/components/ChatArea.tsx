@@ -108,24 +108,33 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               DOC-Lingo performs genuine semantic cross-lingual retrieval.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full text-left">
-              {[
-                { label: 'Deadlock kya hota hai?', desc: 'Hindi question on English doc' },
-                { label: 'Processes ek dusre ko wait kyun karte hain?', desc: 'Hinglish query' },
-                { label: 'What are the 4 conditions of deadlock?', desc: 'Standard English query' },
-                { label: 'Deadlock ko simple words mein explain karo', desc: 'Cross-lingual synthesis' },
-              ].map((example, i) => (
-                <button
-                  key={i}
-                  onClick={() => onSendMessage(example.label)}
-                  className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-300 hover:shadow-xs transition-all text-xs group"
-                >
-                  <div className="font-semibold text-slate-700 group-hover:text-blue-600">
-                    &ldquo;{example.label}&rdquo;
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{example.desc}</div>
-                </button>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-left mt-2">
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50 text-xs">
+                <div className="font-semibold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span className="text-base">📄</span> Any Topic or Domain
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Upload legal contracts, textbooks, technical documentation, or research papers.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50 text-xs">
+                <div className="font-semibold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span className="text-base">🌐</span> Cross-Lingual Search
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Ask in Hindi or Hinglish even if the document was written entirely in English.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-slate-200/80 bg-slate-50/50 text-xs">
+                <div className="font-semibold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span className="text-base">📌</span> Verified Citations
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Every answer links directly to verified source pages and chunks without hallucinations.
+                </p>
+              </div>
             </div>
           </div>
         ) : (
