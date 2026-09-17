@@ -1,0 +1,67 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+backend/data/
+data/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ChromaDB & Vector Store
+chroma_db/
+*.chroma
+
+# Uploaded Files & Temporary Data
+uploads/
+backend/data/uploads/
+data/uploads/
+*.pdf
+*.docx
+!backend/tests/fixtures/*.pdf
+!backend/tests/fixtures/*.docx
+
+# Node.js & Next.js
+frontend/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js build output
+frontend/.next/
+.next/
+out/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
