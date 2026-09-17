@@ -1,4 +1,5 @@
 import os
+import json
 import uuid
 import logging
 from typing import List, Optional, Tuple, AsyncGenerator
@@ -22,8 +23,32 @@ class RAGService:
         self.embedding_service = SentenceTransformerEmbeddingService()
         self.vector_store = ChromaVectorStore()
         self.llm_service = get_llm_service()
-        # In-memory document registry
-        self.documents_metadata = {}
+        self.registry_file = os.path.join(settings.BASE_DIR, "data", "documents_registry.json")
+        self.documents_metadata = self._load_persisted_metadata()
+
+    def _load_persisted_metadata(self) -> dict:
+        if os.path.exists(self.registry_file):
+            try:
+                with open(self.registry_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return {k: DocumentMetadata(**v) for k, v in data.items()}
+            except Exception as e:
+                logger.warning(f"Could not load documents_registry.json: {e}")
+                return {}
+        return {}
+
+    def _save_persisted_metadata(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self.registry_file), exist_ok=True)
+            with open(self.registry_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {k: v.model_dump(mode="json") for k, v in self.documents_metadata.items()},
+                    f,
+                    indent=2,
+                    default=str
+                )
+        except Exception as e:
+            logger.error(f"Failed to save documents_registry.json: {e}")
 
     @classmethod
     def get_instance(cls):
@@ -80,6 +105,7 @@ class RAGService:
             language=detected_doc_lang
         )
         self.documents_metadata[doc_id] = meta
+        self._save_persisted_metadata()
         return meta
 
     def list_documents(self) -> List[DocumentMetadata]:
@@ -90,8 +116,19 @@ class RAGService:
 
     def delete_document(self, document_id: str) -> bool:
         if document_id in self.documents_metadata:
+            meta = self.documents_metadata[document_id]
             self.vector_store.delete_document(document_id)
+            
+            # Clean up local file if present
+            file_path = os.path.join(settings.UPLOAD_DIR, meta.filename)
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+                    
             del self.documents_metadata[document_id]
+            self._save_persisted_metadata()
             return True
         return False
 

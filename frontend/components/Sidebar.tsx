@@ -7,6 +7,7 @@ import {
   FileText, 
   UploadCloud, 
   Trash2, 
+  Download,
   CheckCircle2, 
   Loader2, 
   AlertCircle, 
@@ -168,6 +169,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {doc.status === 'error' && (
                     <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
                   )}
+                  <a
+                    href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/documents/${doc.document_id}/download`}
+                    download={doc.filename}
+                    onClick={(e) => e.stopPropagation()}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-opacity"
+                    title="Download / Save original file"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </a>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

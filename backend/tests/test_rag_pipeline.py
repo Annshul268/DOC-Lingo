@@ -10,10 +10,13 @@ def rag_service():
     # Setup clean test Chroma directory
     test_chroma = os.path.join(settings.BASE_DIR, "data", "test_chroma")
     if os.path.exists(test_chroma):
-        shutil.rmtree(test_chroma)
+        shutil.rmtree(test_chroma, ignore_errors=True)
         
     rag = RAGService.get_instance()
-    rag.vector_store.persist_dir = test_chroma
+    # Use isolated test vector store
+    from backend.app.services.retrieval.chroma_store import ChromaVectorStore
+    rag.vector_store = ChromaVectorStore(persist_dir=test_chroma, collection_name="test_collection")
+    rag.documents_metadata = {}
     
     fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
     pdf_path = os.path.join(fixtures_dir, "os_deadlock_sample.pdf")

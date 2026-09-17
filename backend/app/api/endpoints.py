@@ -3,7 +3,7 @@ import shutil
 import json
 from typing import Optional, List
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from backend.app.core.config import settings
 from backend.app.schemas.document import DocumentUploadResponse, DocumentListResponse, DocumentMetadata
 from backend.app.schemas.chat import ChatRequest, ChatResponse
@@ -82,6 +82,23 @@ async def get_document(document_id: str):
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return doc
+
+@router.get("/documents/{document_id}/download")
+async def download_document(document_id: str):
+    rag = RAGService.get_instance()
+    doc = rag.get_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    
+    file_path = os.path.join(settings.UPLOAD_DIR, doc.filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
+        
+    return FileResponse(
+        path=file_path,
+        filename=doc.filename,
+        media_type="application/octet-stream"
+    )
 
 @router.delete("/documents/{document_id}")
 async def delete_document(document_id: str):

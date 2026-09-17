@@ -48,6 +48,11 @@ def test_upload_and_chat_e2e():
     assert chat_data["citations"][0]["document_id"] == doc_id
     assert chat_data["target_language"] == "hinglish"
 
+    # Download test
+    download_res = client.get(f"/api/documents/{doc_id}/download")
+    assert download_res.status_code == 200
+    assert len(download_res.content) > 0
+
     # Clean up document
     del_res = client.delete(f"/api/documents/{doc_id}")
     assert del_res.status_code == 200
