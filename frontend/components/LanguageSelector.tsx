@@ -19,19 +19,19 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ value, onCha
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <Globe className="w-3.5 h-3.5 text-slate-400" />
-        <span>Answer Language:</span>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+        <Globe className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+        <span className="hidden sm:inline">Answer Language:</span>
       </div>
-      <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs">
+      <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900 p-0.5 text-xs">
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
               value === opt.value
-                ? 'bg-white text-blue-600 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
             title={opt.hint}
           >

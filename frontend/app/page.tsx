@@ -91,7 +91,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-slate-950 transition-colors">
       <Sidebar
         documents={documents}
         selectedDocId={selectedDocId}
