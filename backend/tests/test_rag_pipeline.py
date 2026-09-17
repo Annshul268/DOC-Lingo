@@ -7,15 +7,21 @@ from backend.app.schemas.chat import LanguageChoice
 
 @pytest.fixture(scope="module")
 def rag_service():
-    # Setup clean test Chroma directory
     test_chroma = os.path.join(settings.BASE_DIR, "data", "test_chroma")
     if os.path.exists(test_chroma):
         shutil.rmtree(test_chroma, ignore_errors=True)
         
     rag = RAGService.get_instance()
-    # Use isolated test vector store
+    
+    # Save original state
+    orig_vector_store = rag.vector_store
+    orig_metadata = dict(rag.documents_metadata)
+    orig_registry_file = rag.registry_file
+
+    # Point to test directory and test registry
     from backend.app.services.retrieval.chroma_store import ChromaVectorStore
     rag.vector_store = ChromaVectorStore(persist_dir=test_chroma, collection_name="test_collection")
+    rag.registry_file = os.path.join(test_chroma, "test_registry.json")
     rag.documents_metadata = {}
     
     fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -32,6 +38,11 @@ def rag_service():
     assert docx_meta.chunk_count >= 1
 
     yield rag
+
+    # Restore original state
+    rag.vector_store = orig_vector_store
+    rag.documents_metadata = orig_metadata
+    rag.registry_file = orig_registry_file
 
     # Teardown
     if os.path.exists(test_chroma):
