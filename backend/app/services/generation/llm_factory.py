@@ -51,7 +51,7 @@ class GeminiLLMService(BaseLLMService):
         self.fallback = MockLLMService()
 
     async def generate_response(self, query: str, context_chunks: List[Citation], target_language: str) -> str:
-        if not self.api_key:
+        if not self.api_key or "YOUR_GEMINI_API_KEY" in self.api_key:
             return await self.fallback.generate_response(query, context_chunks, target_language)
         prompt = build_user_prompt(query, context_chunks, target_language)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"

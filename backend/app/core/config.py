@@ -4,8 +4,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import List, Union
 
+_CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+_APP_DIR = os.path.dirname(_CONFIG_DIR)
+_BACKEND_DIR = os.path.dirname(_APP_DIR)
+_ROOT_DIR = os.path.dirname(_BACKEND_DIR)
+
+def _find_env_file() -> str:
+    for path in [
+        os.path.join(_BACKEND_DIR, ".env"),
+        os.path.join(_ROOT_DIR, ".env"),
+        ".env"
+    ]:
+        if os.path.isfile(path):
+            return path
+    return ".env"
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=_find_env_file(),
+        extra="ignore"
+    )
 
     APP_NAME: str = "DOC-Lingo"
     APP_ENV: str = "development"
