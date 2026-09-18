@@ -31,3 +31,14 @@ export interface Message {
   target_language?: string;
   timestamp: string;
 }
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  selectedDocId: string | null;
+  targetLanguage: Language;
+  messages: Message[];
+}
+
