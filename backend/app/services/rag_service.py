@@ -10,6 +10,7 @@ from backend.app.services.ingestion.extractor import extract_text_from_pdf, extr
 from backend.app.services.ingestion.chunker import process_and_chunk_document
 from backend.app.services.embeddings.sentence_transformer import SentenceTransformerEmbeddingService
 from backend.app.services.retrieval.chroma_store import ChromaVectorStore
+from backend.app.services.retrieval.reranker import GenericRAGReranker
 from backend.app.services.generation.llm_factory import get_llm_service
 from backend.app.services.language.detector import detect_language
 from datetime import datetime
@@ -22,6 +23,7 @@ class RAGService:
     def __init__(self):
         self.embedding_service = SentenceTransformerEmbeddingService()
         self.vector_store = ChromaVectorStore()
+        self.reranker = GenericRAGReranker()
         self.llm_service = get_llm_service()
         self.registry_file = os.path.join(settings.BASE_DIR, "data", "documents_registry.json")
         self.documents_metadata = self._load_persisted_metadata()
@@ -149,23 +151,27 @@ class RAGService:
         # 3. Embed query using multilingual embedding
         query_vector = self.embedding_service.embed_query(query)
 
-        # 4. Search in ChromaDB
-        citations = self.vector_store.search(
+        # 4. Search candidate pool in ChromaDB
+        candidate_k = max(8, settings.TOP_K * 2)
+        candidates = self.vector_store.search(
             query_embedding=query_vector,
-            top_k=settings.TOP_K,
+            top_k=candidate_k,
             document_id=document_id
         )
 
-        # Filter by similarity threshold if citations are too distant
-        relevant_citations = [
-            c for c in citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
-        ]
-        
-        # If none pass threshold, fall back to top 1 if available or empty
-        if not relevant_citations and citations and citations[0].similarity_score > 0.2:
-            relevant_citations = [citations[0]]
+        # 5. Rerank and filter candidates
+        reranked_citations = self.reranker.rerank(
+            query=query,
+            citations=candidates,
+            top_k=settings.TOP_K
+        )
 
-        # 5. LLM Grounded Generation
+        # Filter by similarity threshold
+        relevant_citations = [
+            c for c in reranked_citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
+        ]
+
+        # 6. LLM Grounded Generation
         answer = await self.llm_service.generate_response(
             query=query,
             context_chunks=relevant_citations,
@@ -186,16 +192,20 @@ class RAGService:
             final_lang = "en"
 
         query_vector = self.embedding_service.embed_query(query)
-        citations = self.vector_store.search(
+        candidate_k = max(8, settings.TOP_K * 2)
+        candidates = self.vector_store.search(
             query_embedding=query_vector,
-            top_k=settings.TOP_K,
+            top_k=candidate_k,
             document_id=document_id
         )
+        reranked_citations = self.reranker.rerank(
+            query=query,
+            citations=candidates,
+            top_k=settings.TOP_K
+        )
         relevant_citations = [
-            c for c in citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
+            c for c in reranked_citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
         ]
-        if not relevant_citations and citations and citations[0].similarity_score > 0.2:
-            relevant_citations = [citations[0]]
 
         stream_gen = self.llm_service.generate_stream(
             query=query,

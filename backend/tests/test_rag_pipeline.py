@@ -27,6 +27,7 @@ def rag_service():
     fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
     pdf_path = os.path.join(fixtures_dir, "os_deadlock_sample.pdf")
     docx_path = os.path.join(fixtures_dir, "dbms_hindi_sample.docx")
+    novatech_pdf = os.path.join(fixtures_dir, "DOC-Lingo_Test_Document_English.pdf")
 
     # Ingest English PDF
     pdf_meta = rag.process_file(pdf_path, "os_deadlock_sample.pdf")
@@ -36,6 +37,12 @@ def rag_service():
     # Ingest Hindi DOCX
     docx_meta = rag.process_file(docx_path, "dbms_hindi_sample.docx")
     assert docx_meta.chunk_count >= 1
+
+    # Ingest Reference English PDF if present
+    if os.path.exists(novatech_pdf):
+        novatech_meta = rag.process_file(novatech_pdf, "DOC-Lingo_Test_Document_English.pdf")
+        assert novatech_meta.page_count >= 3
+        assert novatech_meta.chunk_count >= 3
 
     yield rag
 
@@ -124,11 +131,12 @@ async def test_scenario_6_irrelevant_query_not_found(rag_service):
         query="How to cook Italian lasagna with parmesan cheese and tomato sauce?",
         target_language="en"
     )
-    # Cosine similarity for lasagna against OS deadlock / DBMS should not pass threshold or answer indicates not found
+    # Cosine similarity for lasagna against documents should not pass threshold or answer indicates not found
     is_not_found = (
         "not contain" in answer.lower() or 
         "sufficient information" in answer.lower() or 
-        "no relevant" in answer.lower()
+        "no relevant" in answer.lower() or
+        "couldn't find" in answer.lower()
     )
     assert is_not_found or len(citations) == 0 or citations[0].similarity_score < 0.4
 
@@ -148,26 +156,26 @@ async def test_scenario_7_hindi_doc_hinglish_query(rag_service):
 @pytest.mark.asyncio
 async def test_scenario_8_no_context_multilingual_fallback(rag_service):
     """Test 8: No relevant context → Language-appropriate fallback in Hindi, Hinglish, English."""
-    # Hindi query fallback
+    # Hindi query fallback (completely absent topic)
     ans_hi, cites_hi, _, _ = await rag_service.answer_query(
-        query="इस दस्तावेज़ में कंपनी का revenue कितना है?",
+        query="इस दस्तावेज़ में मंगल ग्रह (Mars) के मिशन के बारे में क्या लिखा है?",
         target_language="hi"
     )
-    assert "दस्तावेज़" in ans_hi or "पर्याप्त जानकारी नहीं मिली" in ans_hi or len(cites_hi) == 0
+    assert "दस्तावेज़" in ans_hi or "जानकारी नहीं" in ans_hi or len(cites_hi) == 0
 
-    # Hinglish query fallback
+    # Hinglish query fallback (completely absent topic)
     ans_hinglish, cites_hing, _, _ = await rag_service.answer_query(
-        query="Is document me company ka revenue kitna hai?",
+        query="Is document me Mars mission aur spacecraft ke baare me kya hai?",
         target_language="hinglish"
     )
-    assert "information nahi mili" in ans_hinglish.lower() or "sufficient" in ans_hinglish.lower() or len(cites_hing) == 0
+    assert "information nahi mili" in ans_hinglish.lower() or "sufficient" in ans_hinglish.lower() or "nahi mila" in ans_hinglish.lower() or len(cites_hing) == 0
 
-    # English query fallback
+    # English query fallback (completely absent topic)
     ans_en, cites_en, _, _ = await rag_service.answer_query(
-        query="What is the revenue of the company in this document?",
+        query="What is the mission launch date of the Mars Rover mentioned in this document?",
         target_language="en"
     )
-    assert "sufficient information" in ans_en.lower() or "not contain" in ans_en.lower() or len(cites_en) == 0
+    assert "sufficient information" in ans_en.lower() or "not contain" in ans_en.lower() or "couldn't find" in ans_en.lower() or len(cites_en) == 0
 
 @pytest.mark.asyncio
 async def test_scenario_9_explicit_language_override_hindi_query_english_answer(rag_service):
@@ -192,3 +200,85 @@ async def test_scenario_10_explicit_language_override_english_query_hindi_answer
     assert det_lang == "en"
     assert target_lang == "hi"
     assert "दस्तावेज़" in answer or "डेडलॉक" in answer
+
+@pytest.mark.asyncio
+async def test_scenario_11_revenue_2025_cross_lingual(rag_service):
+    """Test 11: 2025 revenue query in English, Hindi, and Hinglish must cite Page 2 and state ₹84 crore."""
+    # English
+    ans_en, cites_en, det_en, _ = await rag_service.answer_query(
+        query="What was NovaTech Solutions' revenue in 2025?",
+        target_language="auto"
+    )
+    assert len(cites_en) > 0
+    assert cites_en[0].page_number == 2, f"Expected Page 2 citation, got Page {cites_en[0].page_number}"
+    assert "84" in ans_en
+
+    # Hindi
+    ans_hi, cites_hi, det_hi, _ = await rag_service.answer_query(
+        query="NovaTech Solutions की 2025 में revenue कितनी थी?",
+        target_language="auto"
+    )
+    assert len(cites_hi) > 0
+    assert cites_hi[0].page_number == 2
+    assert "84" in ans_hi
+
+    # Hinglish
+    ans_hing, cites_hing, det_hing, _ = await rag_service.answer_query(
+        query="NovaTech Solutions ki 2025 mein revenue kitni thi?",
+        target_language="auto"
+    )
+    assert len(cites_hing) > 0
+    assert cites_hing[0].page_number == 2
+    assert "84" in ans_hing
+
+@pytest.mark.asyncio
+async def test_scenario_12_employees_2025_cross_lingual(rag_service):
+    """Test 12: 2025 employees query in English, Hindi, Hinglish must cite Page 2 and return 420 employees."""
+    # English
+    ans_en, cites_en, _, _ = await rag_service.answer_query(
+        query="How many employees did NovaTech Solutions have at the end of 2025?",
+        target_language="en"
+    )
+    assert len(cites_en) > 0
+    assert cites_en[0].page_number == 2
+    assert "420" in ans_en
+
+    # Hindi
+    ans_hi, cites_hi, det_hi, _ = await rag_service.answer_query(
+        query="2025 के अंत में NovaTech Solutions में कितने कर्मचारी थे?",
+        target_language="auto"
+    )
+    assert len(cites_hi) > 0
+    assert cites_hi[0].page_number == 2
+    assert "420" in ans_hi
+
+    # Hinglish
+    ans_hing, cites_hing, det_hing, _ = await rag_service.answer_query(
+        query="Company me 2025 ke end tak kitne employees the?",
+        target_language="auto"
+    )
+    assert len(cites_hing) > 0
+    assert cites_hing[0].page_number == 2
+    assert "420" in ans_hing
+
+@pytest.mark.asyncio
+async def test_scenario_13_no_context_revenue_2026(rag_service):
+    """Test 13: 2026 revenue must NOT hallucinate 2025 revenue (₹84 crore)."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What was NovaTech's revenue in 2026?",
+        target_language="en"
+    )
+    # Must NOT state 84 or 84 crore as 2026 revenue
+    assert "84" not in ans or "couldn't find" in ans.lower() or "not contain" in ans.lower()
+
+@pytest.mark.asyncio
+async def test_scenario_14_pilot_start_query(rag_service):
+    """Test 14: Pilot start query in Hinglish must retrieve Page 2 and cite October 2025."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="Is document ka DOC-Lingo pilot kab start hua tha?",
+        target_language="auto"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number == 2
+    assert "october 2025" in ans.lower() or "october" in ans.lower()
+

@@ -180,29 +180,40 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## Cross-Lingual Query & Response
+## Cross-Lingual Retrieval + Language-Aware Generation
 
-A core strength of DOC-Lingo is **query-language-aware generation across languages**:
+A core engineering highlight of DOC-Lingo is **query-language-aware generation and factual reranking across languages**:
 - The **source document language** and the **user query language** do not need to match.
 - Document chunks are retrieved directly in their source language via shared semantic multilingual embeddings (`paraphrase-multilingual-MiniLM-L12-v2` / `bge-m3`) without pre-translating the entire knowledge base.
-- The answer language is determined strictly by the user's query language (in `Auto` mode) or by the user's explicit selection (`English`, `Hindi`, `Hinglish`).
-- Verified page numbers and source citations always link directly back to the original source document and chunk regardless of query or answer language.
+- **Generic Factual Reranker (`GenericRAGReranker`)**:
+  - **Factual vs. Interrogative Disambiguation**: Intelligently distinguishes factual declarative statements from test questions or practice exercises embedded in documents, preventing practice questions from outranking actual answers.
+  - **Temporal & Numerical Alignment**: Accurately matches query constraints (such as specific financial or calendar years like `2025` vs `2026`) and penalizes conflicting time periods.
+  - **Cross-Lingual Entity Matching**: Employs semantic concept mappings between Hindi/Hinglish terms (`कर्मचारी` / `राजस्व` / `कर्मचारियों`) and English terms (`employee` / `revenue`) with contextual relevance boosts.
+- **Concise, Non-Verbose Factual Generation**:
+  - System prompts and generation synthesizers target the exact fact requested (e.g. employee count or annual revenue) rather than dumping entire unrelated paragraphs.
+- **Language Mode Selection**:
+  - The answer language is determined strictly by the user's query language (in `Auto` mode) or by explicit selection (`English`, `Hindi`, `Hinglish`).
+  - Verified page numbers and source citations always link directly back to the original source document and chunk regardless of query or answer language.
 
 ```
-English Document (e.g. Operating Systems Chapter on Deadlocks)
-                    ↓
-   Hindi / Hinglish / English Query
- (e.g. "Deadlock kya hota hai?" / "डेडलॉक क्या होता है?")
-                    ↓
- Multilingual Semantic Retrieval (ChromaDB)
-   (Retrieves relevant original English chunks)
-                    ↓
-    Language-Aware Grounded Generation
-                    ↓
-       Target Language Answer
-(Natural Hinglish / Devanagari Hindi / English)
-                    ↓
-   Verifiable Page & Document Citations
+English Document (e.g. Corporate Report or Operating Systems Chapter)
+                                 ↓
+                  Hindi / Hinglish / English Query
+         (e.g. "NovaTech Solutions ki 2025 mein revenue kitni thi?")
+                                 ↓
+              Multilingual Semantic Retrieval (ChromaDB)
+               (Candidate pool retrieved in vector space)
+                                 ↓
+             Generic RAG Reranker (Temporal & Factual)
+       (Discards interrogative lists, matches 2025 revenue fact)
+                                 ↓
+                 Language-Aware Grounded Generation
+                 (Extracts concise fact without fluff)
+                                 ↓
+                       Target Language Answer
+         (e.g. "NovaTech Solutions ka 2025 mein revenue ₹84 crore tha.")
+                                 ↓
+                Verifiable Page & Document Citations
 ```
 
 ### Supported Languages & Behaviors:
@@ -211,7 +222,7 @@ English Document (e.g. Operating Systems Chapter on Deadlocks)
   - Roman script queries with Hindi grammar (e.g. *"Is document ka main purpose kya hai?"*) generate conversational Hinglish.
   - English queries generate clear, professional English.
 - **Explicit Override**: Selecting `English`, `Hindi`, or `Hinglish` in the top bar forces the LLM to synthesize the response in that specific language regardless of the query language.
-- **No-Context Fallback**: If the query asks for information not present in the indexed document, the fallback "not found" response is also delivered in the requested language without hallucinations.
+- **No-Context Fallback**: If the query asks for information not present in the indexed document (such as asking for 2026 revenue when only 2025 data exists), the system returns a concise, localized "not found" fallback without hallucinating data from other years.
 
 ---
 
@@ -228,16 +239,20 @@ PYTHONPATH=. pytest backend/tests/ -v
 ```
 
 ### Verified Test Scenarios:
-1. **English document → English question**: Standard grounded retrieval and citation verification.
+1. **English document → English question**: Grounded retrieval and citation verification.
 2. **English document → Hindi (Devanagari) question**: *"डेडलॉक क्या होता है और यह क्यों होता है?"* retrieves English deadlock passages and answers in Hindi.
 3. **English document → Hinglish question**: *"Deadlock kya hota hai?"* retrieves English deadlock passages and answers in natural Hinglish.
 4. **Hindi document → English question**: English question retrieves Hindi DBMS notes in reverse cross-lingual retrieval.
 5. **Multiple documents routing**: Banker's Algorithm query accurately isolates OS deadlock documentation over DBMS documentation.
 6. **Out-of-domain rejection**: Irrelevant queries (e.g. Italian pasta recipe) yield grounded "not found" responses without hallucinations.
 7. **Hindi document → Hinglish question**: *"DBMS me primary key ka kya use hota hai?"* retrieves Hindi documentation and generates a Hinglish response.
-8. **Multi-language No-Context Fallbacks**: Non-existent facts (e.g. company revenue) return language-appropriate fallbacks in Hindi, Hinglish, and English.
+8. **Multi-language No-Context Fallbacks**: Non-existent facts return language-appropriate fallbacks in Hindi, Hinglish, and English.
 9. **Explicit Override (Hindi Query → English Answer)**: Validates explicit language selection overrides automatic detection.
 10. **Explicit Override (English Query → Hindi Answer)**: Validates English query answered in Devanagari Hindi when user selects Hindi.
+11. **Cross-Lingual Revenue 2025**: English, Hindi, and Hinglish queries accurately retrieve Page 2 and confirm ₹84 crore.
+12. **Cross-Lingual Employees 2025**: English, Hindi, and Hinglish queries accurately retrieve Page 2 and extract 420 employees.
+13. **Temporal No-Context Guard (Revenue 2026)**: Query for 2026 revenue safely returns no-context without hallucinating 2025 data.
+14. **Pilot Start Date**: Cross-lingual query correctly retrieves Page 2 and cites October 2025.
 
 ---
 

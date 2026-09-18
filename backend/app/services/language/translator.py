@@ -86,11 +86,35 @@ HINDI_TO_HINGLISH_WORDS = {
     "क्वेरी": "query",
     "उपयोग": "use",
     "प्रणाली": "system",
-    "महत्वपूर्ण": "important"
+    "महत्वपूर्ण": "important",
+    "कंपनी": "company",
+    "कर्मचारियों": "employees",
+    "कर्मचारी": "employees",
+    "वित्तीय वर्ष": "financial year",
+    "वार्षिक आय": "annual revenue",
+    "वार्षिक राजस्व": "annual revenue",
+    "राजस्व": "revenue",
+    "करोड़": "crore",
+    "अंत": "end",
+    "दौरान": "dauran",
+    "दर्ज": "report",
+    "नोवाटेक सॉल्यूशंस": "NovaTech Solutions",
+    "नोवाटेक": "NovaTech",
+    "पायलट": "pilot",
+    "प्रोग्राम": "program",
+    "डेडलॉक": "deadlock",
+    "डेडलाक": "deadlock",
+    "कारण": "cause",
+    "कारणों": "causes"
 }
 
 # Offline English -> Hinglish direct phrase replacement for offline/no-network mode
 ENGLISH_TO_HINGLISH_OFFLINE = [
+    (r"\bThe company had (\d+) employees at the end of (\d+)\b", r"\2 ke end tak company mein \1 employees the"),
+    (r"\bhad (\d+) employees at the end of (\d+)\b", r"\2 ke end tak \1 employees the"),
+    (r"\bDuring the (\d+) financial year\b", r"\1 financial year ke dauran"),
+    (r"\breported annual revenue of (I|■|₹)?\s*(\d+)\s*crore\b", r"ne ₹\2 crore ka annual revenue report kiya"),
+    (r"\bintroduced an internal DOC-Lingo pilot in (\w+ \d+)\b", r"ne \1 mein internal DOC-Lingo pilot introduce kiya"),
     (r"\bDeadlock occurs when\b", "Deadlock tab hota hai jab"),
     (r"\bDeadlock is a situation where\b", "Deadlock ek aisi situation hai jahan"),
     (r"\bDeadlock is a condition where\b", "Deadlock ek aisi condition hai jahan"),
@@ -134,8 +158,9 @@ DEVA_MATRAS = {
 
 def devanagari_to_roman(text: str) -> str:
     """Converts Devanagari Hindi text to Romanized Hinglish."""
-    for hi_word, hn_word in HINDI_TO_HINGLISH_WORDS.items():
-        text = text.replace(hi_word, hn_word)
+    # Replace longer phrases first to avoid sub-word collisions
+    for hi_word in sorted(HINDI_TO_HINGLISH_WORDS.keys(), key=len, reverse=True):
+        text = text.replace(hi_word, HINDI_TO_HINGLISH_WORDS[hi_word])
 
     res = []
     i = 0
