@@ -13,10 +13,7 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
   if (!citations || citations.length === 0) return null;
 
-  // 1. Calculate dynamic reference count
-  const refCountText = `${citations.length} reference${citations.length === 1 ? '' : 's'}`;
-
-  // 2. Calculate dynamic page range
+  // 1. Calculate dynamic reference count and page range
   const validPages = citations
     .map((c) => c.page_number)
     .filter((p): p is number => typeof p === 'number' && p > 0);
@@ -28,7 +25,6 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   } else if (uniquePages.length > 1) {
     const minPage = uniquePages[0];
     const maxPage = uniquePages[uniquePages.length - 1];
-    // Check if pages are strictly contiguous (e.g., 2, 3 -> Pages 2–3)
     if (maxPage - minPage + 1 === uniquePages.length) {
       pageRangeText = `Pages ${minPage}–${maxPage}`;
     } else {
@@ -36,18 +32,25 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
     }
   }
 
-  // Header label: e.g. "Sources · 4 references · Pages 2–3"
-  const headerSummary = [
-    'Sources',
-    refCountText,
-    pageRangeText
-  ].filter(Boolean).join(' · ');
+  // Header summary:
+  // If 1 source: "Source · Page 2"
+  // If multiple: "Sources · 2 references · Pages 2–3"
+  let headerSummary = '';
+  if (citations.length === 1) {
+    headerSummary = `Source · Page ${citations[0].page_number}`;
+  } else {
+    headerSummary = [
+      'Sources',
+      `${citations.length} references`,
+      pageRangeText
+    ].filter(Boolean).join(' · ');
+  }
 
-  // 3. Group citations by document (filename) so filename is displayed ONLY ONCE
+  // 2. Group citations by document (filename) so filename is displayed ONLY ONCE
   const groupedByDoc = citations.reduce<
     Record<string, { filename: string; items: Citation[] }>
   >((acc, cite) => {
-    const key = cite.document_id || cite.filename;
+    const key = cite.filename || cite.document_id;
     if (!acc[key]) {
       acc[key] = {
         filename: cite.filename,
@@ -90,31 +93,20 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
               </div>
 
               {/* List of citations under this document */}
-              <div className="space-y-2.5 pl-4 border-l-2 border-slate-200 dark:border-slate-800">
-                {group.items.map((cite, citeIdx) => {
-                  const pct = Math.round(cite.similarity_score * 100);
-
-                  return (
-                    <div key={citeIdx} className="space-y-1">
-                      {/* Page number & similarity match */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                          Page {cite.page_number}
-                        </span>
-                        {cite.similarity_score > 0 && (
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-                            {pct}% match
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Excerpt text */}
-                      <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-200/70 dark:border-slate-800 whitespace-pre-wrap font-normal">
-                        "{cite.text_snippet.trim()}"
-                      </div>
+              <div className="space-y-3 pl-3.5 border-l-2 border-slate-200 dark:border-slate-800">
+                {group.items.map((cite, citeIdx) => (
+                  <div key={citeIdx} className="space-y-1">
+                    {/* Page number */}
+                    <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                      Page {cite.page_number}
                     </div>
-                  );
-                })}
+
+                    {/* Excerpt text */}
+                    <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-200/70 dark:border-slate-800 whitespace-pre-wrap font-normal">
+                      "{cite.text_snippet.trim()}"
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

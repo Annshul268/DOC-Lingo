@@ -178,6 +178,15 @@ class RAGService:
             target_language=final_lang
         )
 
+        # Clear citations if the generated answer indicates information was not found
+        not_found_markers = [
+            "could not find", "couldn't find", "not find", "no information",
+            "not contain", "does not contain", "not mentioned",
+            "पर्याप्त जानकारी नहीं मिली", "जानकारी नहीं", "information nahi mili", "nahi mila"
+        ]
+        if any(marker in answer.lower() for marker in not_found_markers):
+            relevant_citations = []
+
         return answer, relevant_citations, detected_lang, final_lang
 
     async def stream_query(
