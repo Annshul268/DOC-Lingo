@@ -12,18 +12,17 @@ logger = logging.getLogger(__name__)
 class MockLLMService(BaseLLMService):
     """
     Fallback mock service for environments without Ollama or external keys.
-    Generates grounded answers based directly on extracted context chunks.
+    Generates grounded answers based directly on extracted context chunks in the requested language.
     """
     async def generate_response(self, query: str, context_chunks: List[Citation], target_language: str) -> str:
         if not context_chunks:
             if target_language == "hi":
-                return "क्षमा करें, उपलब्ध दस्तावेज़ों में इस प्रश्न के लिए पर्याप्त जानकारी नहीं मिली।"
+                return "दिए गए दस्तावेज़ों में इस प्रश्न के लिए पर्याप्त जानकारी नहीं मिली।"
             elif target_language == "hinglish":
-                return "Sorry, uploaded documents mein is sawaal ke liye sufficient information nahi mili."
+                return "Provided documents mein is question ke liye sufficient information nahi mili."
             else:
-                return "I'm sorry, but the uploaded documents do not contain sufficient information to answer this question."
+                return "I could not find sufficient information to answer this question in the provided documents."
 
-        # Grounded answer using top context chunk
         top_chunk = context_chunks[0]
         snippet = top_chunk.text_snippet.strip()
         

@@ -178,6 +178,43 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
+---
+
+## Cross-Lingual Query & Response
+
+A core strength of DOC-Lingo is **query-language-aware generation across languages**:
+- The **source document language** and the **user query language** do not need to match.
+- Document chunks are retrieved directly in their source language via shared semantic multilingual embeddings (`paraphrase-multilingual-MiniLM-L12-v2` / `bge-m3`) without pre-translating the entire knowledge base.
+- The answer language is determined strictly by the user's query language (in `Auto` mode) or by the user's explicit selection (`English`, `Hindi`, `Hinglish`).
+- Verified page numbers and source citations always link directly back to the original source document and chunk regardless of query or answer language.
+
+```
+English Document (e.g. Operating Systems Chapter on Deadlocks)
+                    ↓
+   Hindi / Hinglish / English Query
+ (e.g. "Deadlock kya hota hai?" / "डेडलॉक क्या होता है?")
+                    ↓
+ Multilingual Semantic Retrieval (ChromaDB)
+   (Retrieves relevant original English chunks)
+                    ↓
+    Language-Aware Grounded Generation
+                    ↓
+       Target Language Answer
+(Natural Hinglish / Devanagari Hindi / English)
+                    ↓
+   Verifiable Page & Document Citations
+```
+
+### Supported Languages & Behaviors:
+- **Auto Detect**: Automatically inspects script and grammatical markers:
+  - Devanagari script queries (e.g. *"इस document का main purpose क्या है?"*) generate answers in natural Devanagari Hindi.
+  - Roman script queries with Hindi grammar (e.g. *"Is document ka main purpose kya hai?"*) generate conversational Hinglish.
+  - English queries generate clear, professional English.
+- **Explicit Override**: Selecting `English`, `Hindi`, or `Hinglish` in the top bar forces the LLM to synthesize the response in that specific language regardless of the query language.
+- **No-Context Fallback**: If the query asks for information not present in the indexed document, the fallback "not found" response is also delivered in the requested language without hallucinations.
+
+---
+
 ## Running Tests
 
 DOC-Lingo includes automated test suites validating text extraction, chunking, metadata preservation, API contracts, and end-to-end cross-lingual retrieval.
@@ -191,12 +228,16 @@ PYTHONPATH=. pytest backend/tests/ -v
 ```
 
 ### Verified Test Scenarios:
-1. **English document → English question**: Validates standard grounded retrieval and citation verification.
-2. **English document → Hindi (Devanagari) question**: Validates that `"डेडलॉक क्या होता है?"` retrieves relevant English deadlock passages.
-3. **English document → Hinglish question**: Validates that `"Deadlock kya hota hai?"` retrieves English passages and answers in natural Hinglish.
-4. **Hindi document → English question**: Validates cross-lingual retrieval in reverse (English question retrieves Hindi DBMS documentation).
-5. **Multi-document retrieval**: Validates specific document routing when multiple documents are indexed.
-6. **Out-of-domain rejection**: Validates that irrelevant queries (e.g. lasagna recipes) yield grounded "not found" responses without hallucinations.
+1. **English document → English question**: Standard grounded retrieval and citation verification.
+2. **English document → Hindi (Devanagari) question**: *"डेडलॉक क्या होता है और यह क्यों होता है?"* retrieves English deadlock passages and answers in Hindi.
+3. **English document → Hinglish question**: *"Deadlock kya hota hai?"* retrieves English deadlock passages and answers in natural Hinglish.
+4. **Hindi document → English question**: English question retrieves Hindi DBMS notes in reverse cross-lingual retrieval.
+5. **Multiple documents routing**: Banker's Algorithm query accurately isolates OS deadlock documentation over DBMS documentation.
+6. **Out-of-domain rejection**: Irrelevant queries (e.g. Italian pasta recipe) yield grounded "not found" responses without hallucinations.
+7. **Hindi document → Hinglish question**: *"DBMS me primary key ka kya use hota hai?"* retrieves Hindi documentation and generates a Hinglish response.
+8. **Multi-language No-Context Fallbacks**: Non-existent facts (e.g. company revenue) return language-appropriate fallbacks in Hindi, Hinglish, and English.
+9. **Explicit Override (Hindi Query → English Answer)**: Validates explicit language selection overrides automatic detection.
+10. **Explicit Override (English Query → Hindi Answer)**: Validates English query answered in Devanagari Hindi when user selects Hindi.
 
 ---
 

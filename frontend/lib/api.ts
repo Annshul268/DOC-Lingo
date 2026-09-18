@@ -7,6 +7,8 @@ export interface ChatResponse {
   citations: Citation[];
   detected_language: string;
   target_language: string;
+  language?: string;
+  sources?: Citation[];
   document_id?: string;
 }
 
@@ -58,6 +60,7 @@ export const api = {
         query,
         document_id: documentId,
         target_language: targetLanguage,
+        language: targetLanguage,
       }),
     });
 
@@ -84,6 +87,7 @@ export const api = {
           query,
           document_id: documentId,
           target_language: targetLanguage,
+          language: targetLanguage,
         }),
       });
 
