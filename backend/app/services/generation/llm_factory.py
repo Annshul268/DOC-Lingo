@@ -48,31 +48,39 @@ class MockLLMService(BaseLLMService):
         # Normalize currency font artifacts (e.g. 'I84 crore' -> '₹84 crore')
         snippet = re.sub(r'(?<=\s)[I■](?=\d+\s*(?:crore|lakh|thousand|million|billion|\b))', '₹', snippet)
 
+        # Normalize text flow (un-wrap soft line breaks within sentences)
+        lines_raw = [l.strip() for l in snippet.split('\n') if l.strip()]
+        merged_lines = []
+        for l in lines_raw:
+            if not merged_lines:
+                merged_lines.append(l)
+                continue
+            prev = merged_lines[-1]
+            is_prev_heading = (len(prev) < 50 and not prev.endswith(','))
+            is_bullet = bool(re.match(r'^(\d+[\.\)]|\-|\*|•)\s+', l))
+            if prev.endswith(('.', '!', '?', '।', ':')) or is_prev_heading or is_bullet:
+                merged_lines.append(l)
+            else:
+                merged_lines[-1] = prev + ' ' + l
+        normalized_snippet = '\n'.join(merged_lines)
+
         # 1. Temporal conflict check (e.g. asking for 2026 when snippet only has 2025)
         if query_years:
-            snippet_years = set(re.findall(r'\b(19\d\d|20\d\d)\b', snippet))
+            snippet_years = set(re.findall(r'\b(19\d\d|20\d\d)\b', normalized_snippet))
             if snippet_years and not query_years.intersection(snippet_years):
                 return None, False
 
-        # 2. Split snippet into sentences
-        sentences = [s.strip() for s in re.split(r'(?<=[.?!।\n])\s+', snippet) if s.strip()]
+        # 2. Split snippet into genuine sentences preserving unbroken flow
+        sentences = [s.strip() for s in re.split(r'(?<=[.?!।])\s+', normalized_snippet) if s.strip()]
         factual_sentences = [s for s in sentences if not s.endswith('?') and s.count('?') == 0]
         if not factual_sentences:
             factual_sentences = sentences
 
-        # Exclude common query stop words and metadata terms from sentence matching
-        stop_words = {
-            "document", "documents", "file", "page", "what", "which", "when", "where", 
-            "how", "many", "much", "tell", "show", "give", "kya", "kaun", "kab", 
-            "kahan", "kitna", "kitne", "kitni", "hai", "hain", "tha", "the", "thi", 
-            "hota", "hoti", "hote", "batao", "explain", "karo", "baare", "mein", "me"
-        }
-        content_query_words = {w for w in query_words if w not in stop_words and len(w) > 2}
-        
-        # Cross-lingual expansion
+        # Exclude common query stop words and generic words from sentence matching
         from backend.app.services.retrieval.reranker import GenericRAGReranker
         from backend.app.services.language.translator import devanagari_to_roman
 
+        content_query_words = {w for w in query_words if w not in GenericRAGReranker.GENERIC_WORDS and len(w) > 2}
         expanded_query_words = set(content_query_words)
         for w in list(content_query_words):
             roman = devanagari_to_roman(w).lower()
@@ -82,28 +90,55 @@ class MockLLMService(BaseLLMService):
                 expanded_query_words.add(syn.lower())
 
         scored_sentences = []
-        for s in factual_sentences:
+        for idx, s in enumerate(factual_sentences):
             s_lower = s.lower()
-            score = 0
+            score = 0.0
             for w in expanded_query_words:
-                if w in s_lower:
-                    score += 1.5
+                if re.search(r'\b' + re.escape(w) + r'\b', s_lower):
+                    score += 2.0
+                    if w in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS:
+                        score += 3.0
             for y in query_years:
                 if y in s:
                     score += 3.0
             if re.search(r'\b\d+\b', s):
                 score += 0.5
-            scored_sentences.append((score, s))
+
+            has_pred = any(re.search(r'\b' + re.escape(p) + r'\b', s_lower) for p in GenericRAGReranker.EXPLANATORY_PREDICATES)
+            is_list = any(re.search(r'\b' + re.escape(m) + r'\b', s_lower) for m in GenericRAGReranker.LIST_MARKERS)
+
+            if has_pred:
+                score += 2.0
+            if is_list and not has_pred:
+                score -= 2.5
+            if len(s) < 50 and not s.endswith(('.', '!', '?', '।')) and not has_pred:
+                score -= 3.5
+
+            scored_sentences.append((score, idx, s))
 
         scored_sentences.sort(key=lambda x: x[0], reverse=True)
         if scored_sentences and scored_sentences[0][0] >= 1.5:
-            top_sent = scored_sentences[0][1]
-            # Strip heading lines if present
-            lines = [l.strip() for l in top_sent.split('\n') if l.strip()]
-            if len(lines) > 1 and len(lines[0]) < 50 and not lines[0].endswith(('.', '?')):
+            top_score, top_idx, top_sent = scored_sentences[0]
+
+            # If adjacent sentence in the same snippet provides continuing explanation, include it
+            result_sents = [top_sent]
+            if top_idx + 1 < len(factual_sentences):
+                next_s = factual_sentences[top_idx + 1]
+                next_lower = next_s.lower()
+                next_has_pred = any(re.search(r'\b' + re.escape(p) + r'\b', next_lower) for p in GenericRAGReranker.EXPLANATORY_PREDICATES)
+                next_matches_kw = any(w in next_lower for w in expanded_query_words)
+                if next_has_pred and (next_matches_kw or len(factual_sentences) <= 3) and not next_s.endswith('?'):
+                    result_sents.append(next_s)
+
+            combined_fact = ' '.join(result_sents)
+            # Remove any solitary heading lines or header/footer artifacts
+            combined_fact = re.sub(r'^[A-Za-z0-9\s—–•]+\s*[—–•]\s*Page\s*\d+\s*', '', combined_fact)
+            combined_fact = re.sub(r'^[—–•]\s*[A-Za-z0-9\s,]+(?:\n|$)', '', combined_fact)
+            combined_fact = re.sub(r'^(?:[A-Za-z\s]{2,30}:)\s*', '', combined_fact)
+            lines = [l.strip() for l in combined_fact.split('\n') if l.strip()]
+            if len(lines) > 1 and len(lines[0]) < 50 and not lines[0].endswith(('.', '!', '?')):
                 lines = lines[1:]
             clean_fact = ' '.join(lines)
-            clean_fact = re.sub(r'^(?:Employees|Organization|Founded|Key pilot result|Business Information):\s*', '', clean_fact, flags=re.IGNORECASE)
             return clean_fact.strip(), True
 
         # If no content words matched at all, there is no grounded answer

@@ -10,6 +10,28 @@ def sanitize_filename(filename: str) -> str:
     clean = re.sub(r'[^a-zA-Z0-9_.-]', '_', base)
     return clean
 
+def _normalize_block_text(text: str) -> str:
+    """Normalize internal line wraps within a block into continuous sentences."""
+    lines = [re.sub(r'[ \t]+', ' ', l).strip() for l in text.split('\n') if l.strip()]
+    if not lines:
+        return ''
+    out = []
+    for l in lines:
+        if not out:
+            out.append(l)
+            continue
+        prev = out[-1]
+        # If previous line ends with a colon, terminal punctuation, or is a heading/bullet
+        if (
+            prev.endswith(('.', '!', '?', '।', ':')) or
+            re.match(r'^(\d+[\.\)]|\-|\*|•)\s+', l) or
+            (len(prev) < 50 and not prev.endswith(','))
+        ):
+            out.append(l)
+        else:
+            out[-1] = prev + ' ' + l
+    return '\n'.join(out)
+
 def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
     """
     Extracts text page-by-page from a PDF using PyMuPDF,
@@ -26,22 +48,16 @@ def extract_text_from_pdf(file_path: str) -> List[Dict[str, Any]]:
 
             if text_blocks:
                 paras = []
-                curr_para = []
-                prev_y1 = None
                 for b in text_blocks:
-                    x0, y0, x1, y1, text, bno, btype = b
-                    cleaned_line = re.sub(r'[ \t]+', ' ', text).strip()
-                    if not cleaned_line:
+                    cleaned_block = _normalize_block_text(b[4])
+                    if not cleaned_block:
                         continue
-                    # Vertical separation greater than 5 points signifies paragraph/section break
-                    if prev_y1 is not None and (y0 - prev_y1 > 5.0):
-                        if curr_para:
-                            paras.append(" ".join(curr_para))
-                            curr_para = []
-                    curr_para.append(cleaned_line)
-                    prev_y1 = y1
-                if curr_para:
-                    paras.append(" ".join(curr_para))
+                    # Filter out isolated page numbering footers/headers generically
+                    if re.match(r'^(?:.*[—•\-]\s*)?Page\s*\d+(?:\s*(?:of|[—•\-])\s*\d+)?(?:\s*[—•\-].*)?$', cleaned_block, re.IGNORECASE):
+                        continue
+                    if re.match(r'^\d+\s*\|\s*Page$', cleaned_block, re.IGNORECASE):
+                        continue
+                    paras.append(cleaned_block)
                 page_text = "\n\n".join(paras).strip()
             else:
                 raw_text = page.get_text("text")

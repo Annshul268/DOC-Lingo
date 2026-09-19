@@ -58,8 +58,8 @@ def split_text_into_chunks(text: str, chunk_size: int = 500, chunk_overlap: int 
                 chunks.append("\n\n".join(current_chunk))
                 current_chunk = []
                 current_len = 0
-            # Split oversized block along sentence boundaries
-            sentences = re.split(r'(?<=[.?!।\n])\s+', block)
+            # Split oversized block along genuine sentence boundaries
+            sentences = re.split(r'(?<=[.?!।])\s+', block)
             curr_sent = []
             curr_sent_len = 0
             for s in sentences:

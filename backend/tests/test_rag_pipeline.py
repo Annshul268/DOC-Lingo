@@ -44,6 +44,13 @@ def rag_service():
         assert novatech_meta.page_count >= 3
         assert novatech_meta.chunk_count >= 3
 
+    # Ingest OS Test PDF if present
+    os_pdf = os.path.join(fixtures_dir, "DOC-Lingo_OS_Test_Document.pdf")
+    if os.path.exists(os_pdf):
+        os_meta = rag.process_file(os_pdf, "DOC-Lingo_OS_Test_Document.pdf")
+        assert os_meta.page_count == 3
+        assert os_meta.chunk_count >= 3
+
     yield rag
 
     # Restore original state
@@ -281,4 +288,56 @@ async def test_scenario_14_pilot_start_query(rag_service):
     assert len(cites) > 0
     assert cites[0].page_number == 2
     assert "october 2025" in ans.lower() or "october" in ans.lower()
+
+@pytest.mark.asyncio
+async def test_scenario_15_os_memory_management_explanation(rag_service):
+    """Test 15: Memory management query must return explanatory facts and NOT just a solitary heading."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What does memory management do in an operating system?",
+        target_language="en"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number in (1, 3)
+    # Must NOT be merely the heading
+    assert ans.strip().lower() != "memory management"
+    # Must contain actual explanatory content
+    assert any(term in ans.lower() for term in ["track", "allocat", "virtual memory", "process", "storage"])
+
+@pytest.mark.asyncio
+async def test_scenario_16_os_round_robin_hinglish_quality(rag_service):
+    """Test 16: Round Robin Hinglish query must return clean Roman-script Hinglish without phonetic mangling."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="Round Robin scheduling kaise kaam karta hai?",
+        target_language="hinglish"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number == 2
+    # Must contain technical terms in clean English script
+    assert "round robin" in ans.lower()
+    assert "quantum" in ans.lower()
+    # Must NOT contain phonetically mangled transliterations
+    assert "prayoritee" not in ans.lower()
+    assert "rॉbin" not in ans
+
+@pytest.mark.asyncio
+async def test_scenario_17_os_no_context_market_price(rag_service):
+    """Test 17: Out-of-context query about market price in 2026 must return not found and zero citations."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What is the market price of Linux in 2026?",
+        target_language="en"
+    )
+    assert len(cites) == 0
+    assert any(m in ans.lower() for m in ["could not find", "couldn't find", "not find", "no information", "not found", "sufficient information"])
+
+@pytest.mark.asyncio
+async def test_scenario_18_os_cross_lingual_linux_type(rag_service):
+    """Test 18: Cross-lingual query about Linux type must cite Page 2 and identify open-source."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="Linux kis type ka operating system hai?",
+        target_language="hinglish"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number == 2
+    assert "open-source" in ans.lower() or "operating-system" in ans.lower()
+
 

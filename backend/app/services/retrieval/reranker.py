@@ -20,6 +20,7 @@ class GenericRAGReranker:
         'what', 'was', 'is', 'are', 'were', 'the', 'in', 'on', 'at', 'of', 'for', 'to',
         'a', 'an', 'and', 'or', 'how', 'many', 'much', 'did', 'does', 'do', 'which',
         'who', 'whom', 'where', 'when', 'why', 'about', 'from', 'with', 'by', 'its',
+        'has', 'have', 'had', 'been', 'will', 'would', 'could', 'should',
         'kya', 'hai', 'hain', 'tha', 'thi', 'the', 'ka', 'ki', 'ke', 'ko', 'me', 'mein',
         'se', 'par', 'aur', 'ya', 'kitna', 'kitne', 'kitni', 'kab', 'kahan', 'kaise',
         'tak', 'ek', 'bhi', 'kisi', 'kisko', 'iska', 'iski', 'iske'
@@ -63,39 +64,60 @@ class GenericRAGReranker:
         'end', 'start', 'beginning', 'middle', 'total', 'all'
     }
 
-    def _extract_focused_excerpt(self, text: str, content_words: set, query_years: set) -> str:
-        """Extracts the specific paragraph or sentence that actually contains the factual evidence."""
-        # Split text into paragraphs or distinct bullet/field lines
-        paragraphs = [p.strip() for p in re.split(r'\n\s*\n|\n(?=[A-Z][a-zA-Z\s]+:)', text) if p.strip()]
-        if not paragraphs or len(paragraphs) == 1:
-            paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+    EXPLANATORY_PREDICATES = {
+        'tracks', 'track', 'allocates', 'allocate', 'manages', 'manage', 'allows', 'allow',
+        'provides', 'provide', 'creates', 'create', 'divides', 'divide', 'operates', 'operate',
+        'controls', 'control', 'uses', 'use', 'performs', 'perform', 'works', 'work',
+        'assigns', 'assign', 'defined', 'refers', 'acts', 'is', 'are', 'was', 'were',
+        'had', 'has', 'have',
+        'karta', 'karti', 'karte', 'hota', 'hoti', 'hote', 'diya', 'kiya'
+    }
 
+    LIST_MARKERS = [
+        'include', 'includes', 'examples include', 'approaches include', 'types include', 'such as'
+    ]
+
+    def _extract_focused_excerpt(self, text: str, content_words: set, query_years: set) -> str:
+        """Extracts the specific paragraph or section that actually contains the factual evidence."""
+        # Generic cleaning of page headers/footers
+        cleaned_text = re.sub(r'(?i)\b(?:page\s*\d+(?:\s*(?:of|—|-)\s*\d+)?|\d+\s*\|\s*page)\b', '', text)
+        cleaned_text = re.sub(r'^[A-Za-z0-9\s—–•]+\s*[—–•]\s*Page\s*\d+\s*$', '', cleaned_text, flags=re.MULTILINE)
+
+        # Split text into paragraphs preserving structure
+        paragraphs = [p.strip() for p in re.split(r'\n\s*\n|\n(?=[A-Z][a-zA-Z\s]{2,35}:)', cleaned_text) if p.strip()]
         if not paragraphs:
             return text.strip()
 
         scored_paragraphs = []
         for p in paragraphs:
             p_lower = p.lower()
-            score = 0
+            score = 0.0
             for w in content_words:
                 if re.search(r'\b' + re.escape(w) + r'\b', p_lower):
                     score += 2.0
+                    if w in self.CROSS_LINGUAL_SYNONYMS:
+                        score += 2.5
             for y in query_years:
                 if y in p:
                     score += 3.0
             if re.search(r'\b\d+\b', p):
                 score += 0.5
-            # Penalize question sentences
-            if p.strip().endswith('?') or p.count('?') > 0:
+            # Penalize question lines
+            if p.strip().endswith('?') or p.count('?') > 1:
                 score -= 4.0
+
+            # Predicate vs bare heading scoring
+            has_pred = any(re.search(r'\b' + re.escape(pred) + r'\b', p_lower) for pred in self.EXPLANATORY_PREDICATES)
+            if len(p) < 60 and not p.endswith(('.', '!', '?', '।', ':')) and not has_pred:
+                score -= 3.0
+            elif has_pred:
+                score += 1.5
+
             scored_paragraphs.append((score, p))
 
         scored_paragraphs.sort(key=lambda x: x[0], reverse=True)
         if scored_paragraphs and scored_paragraphs[0][0] > 0:
-            best_p = scored_paragraphs[0][1]
-            # Strip footer artifacts e.g. "DOC-Lingo Test Document • Page 2"
-            best_p = re.sub(r'\s*DOC-Lingo Test Document\s*•\s*Page\s*\d+', '', best_p, flags=re.IGNORECASE)
-            return best_p.strip()
+            return scored_paragraphs[0][1].strip()
 
         return text.strip()
 
@@ -125,6 +147,12 @@ class GenericRAGReranker:
 
         content_query_words = {w for w in expanded_keywords if w not in self.GENERIC_WORDS and len(w) > 2}
 
+        # Check if query is explanatory/functional ("what does X do", "how does X work", "kaise kaam karta hai")
+        is_explanatory_query = any(q_word in query.lower() for q_word in [
+            'what does', 'what do', 'how does', 'how do', 'explain', 'kaise', 'kya karta',
+            'kya karti', 'kya karte', 'role', 'function', 'purpose', 'work', 'works'
+        ])
+
         scored_citations = []
         for c in citations:
             text = c.text_snippet
@@ -151,7 +179,6 @@ class GenericRAGReranker:
                 matching_years = query_years.intersection(chunk_years)
                 conflicting_years = chunk_years - query_years
                 if conflicting_years and not matching_years:
-                    # Conflicting year (e.g. query asks for 2026, chunk has only 2025) -> Reject as evidence
                     continue
                 if matching_years:
                     score += 0.25
@@ -171,6 +198,20 @@ class GenericRAGReranker:
                 score += 0.25 * kw_ratio
             if topic_concept_matches > 0:
                 score += 0.25
+
+            # --- Signal 4: Explanatory Predicate vs. Mere List vs. Heading Only ---
+            has_pred = any(re.search(r'\b' + re.escape(pred) + r'\b', text_lower) for pred in self.EXPLANATORY_PREDICATES)
+            is_mere_list = any(re.search(r'\b' + re.escape(m) + r'\b', text_lower) for m in self.LIST_MARKERS)
+            
+            if is_explanatory_query:
+                if has_pred:
+                    score += 0.20
+                if is_mere_list and not has_pred:
+                    score -= 0.20
+
+            # Penalize chunks that are just solitary headings without explanatory predicates
+            if len(text.strip()) < 60 and not has_pred and not text.strip().endswith(('.', '!', '?', '।')):
+                score -= 0.35
 
             # Extract the focused supporting excerpt
             focused_snippet = self._extract_focused_excerpt(text, content_query_words, query_years)
@@ -207,15 +248,15 @@ class GenericRAGReranker:
         top_score = deduped[0][0]
         top_has_concept = deduped[0][1] > 0
 
-        # Adaptive evidence selection:
-        # If top chunk has a specific topic concept match (e.g. employee or revenue),
-        # only retain chunks that ALSO match that concept!
+        # Minimum sufficient evidence:
+        # If top chunk is highly confident and comprehensive, only keep additional chunks
+        # if they genuinely add supporting evidence (close in score and sharing topic concept)
         filtered_results = []
         for s, concept_matches, cite in deduped[:top_k]:
             if top_has_concept and concept_matches == 0:
                 continue
             if top_score >= 0.70:
-                if s >= max(0.45, top_score - 0.15):
+                if s >= max(0.50, top_score - 0.12):
                     filtered_results.append(cite)
             else:
                 if s >= 0.35:
