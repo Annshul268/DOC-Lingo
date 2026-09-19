@@ -69,56 +69,6 @@ flowchart TD
 
 ---
 
-## Project Structure
-
-```
-DOC-Lingo/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── endpoints.py         # REST & SSE streaming endpoints
-│   │   ├── core/
-│   │   │   └── config.py            # Centralized RAG & server config
-│   │   ├── schemas/
-│   │   │   ├── document.py          # Document & chunk Pydantic models
-│   │   │   └── chat.py              # Chat request, response & citation models
-│   │   ├── services/
-│   │   │   ├── ingestion/           # PDF/DOCX extractors and page chunkers
-│   │   │   ├── embeddings/          # Multilingual vector embedding service
-│   │   │   ├── retrieval/           # ChromaDB vector store abstraction
-│   │   │   ├── generation/          # LLM prompt construction & Ollama service
-│   │   │   ├── language/            # Hindi/Hinglish/English script detector
-│   │   │   └── rag_service.py       # Main end-to-end RAG orchestrator
-│   │   └── main.py                  # FastAPI application entrypoint
-│   ├── tests/
-│   │   ├── fixtures/                # Bilingual test PDFs and DOCX files
-│   │   ├── test_components.py       # Unit tests for chunker, sanitizer & detector
-│   │   ├── test_rag_pipeline.py     # 6 cross-lingual RAG test scenarios
-│   │   └── test_api_endpoints.py    # FastAPI endpoint test client
-│   └── requirements.txt
-├── frontend/
-│   ├── app/
-│   │   ├── globals.css              # Modern Tailwind theme & typography
-│   │   ├── layout.tsx               # Root layout
-│   │   └── page.tsx                 # Main application view
-│   ├── components/
-│   │   ├── ChatArea.tsx             # Interactive conversation UI
-│   │   ├── Sidebar.tsx              # Document upload & knowledge base manager
-│   │   ├── CitationsList.tsx        # Expandable chunk citations with score
-│   │   └── LanguageSelector.tsx     # Auto/En/Hi/Hinglish language picker
-│   ├── lib/
-│   │   ├── api.ts                   # Dedicated frontend API service client
-│   │   └── utils.ts
-│   ├── types/                       # TypeScript models
-│   ├── package.json
-│   └── tsconfig.json
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
----
-
 ## Installation & Setup
 
 ### Prerequisites
@@ -237,30 +187,4 @@ source backend/venv/bin/activate
 # Run full backend test suite
 PYTHONPATH=. pytest backend/tests/ -v
 ```
-
-### Verified Test Scenarios:
-1. **English document → English question**: Grounded retrieval and citation verification.
-2. **English document → Hindi (Devanagari) question**: *"डेडलॉक क्या होता है और यह क्यों होता है?"* retrieves English deadlock passages and answers in Hindi.
-3. **English document → Hinglish question**: *"Deadlock kya hota hai?"* retrieves English deadlock passages and answers in natural Hinglish.
-4. **Hindi document → English question**: English question retrieves Hindi DBMS notes in reverse cross-lingual retrieval.
-5. **Multiple documents routing**: Banker's Algorithm query accurately isolates OS deadlock documentation over DBMS documentation.
-6. **Out-of-domain rejection**: Irrelevant queries (e.g. Italian pasta recipe) yield grounded "not found" responses without hallucinations.
-7. **Hindi document → Hinglish question**: *"DBMS me primary key ka kya use hota hai?"* retrieves Hindi documentation and generates a Hinglish response.
-8. **Multi-language No-Context Fallbacks**: Non-existent facts return language-appropriate fallbacks in Hindi, Hinglish, and English.
-9. **Explicit Override (Hindi Query → English Answer)**: Validates explicit language selection overrides automatic detection.
-10. **Explicit Override (English Query → Hindi Answer)**: Validates English query answered in Devanagari Hindi when user selects Hindi.
-11. **Cross-Lingual Revenue 2025**: English, Hindi, and Hinglish queries accurately retrieve Page 2 and confirm ₹84 crore.
-12. **Cross-Lingual Employees 2025**: English, Hindi, and Hinglish queries accurately retrieve Page 2 and extract 420 employees.
-13. **Temporal No-Context Guard (Revenue 2026)**: Query for 2026 revenue safely returns no-context without hallucinating 2025 data.
-14. **Pilot Start Date**: Cross-lingual query correctly retrieves Page 2 and cites October 2025.
-
 ---
-
-## Future Roadmap
-
-- [ ] Support for additional Indic languages (Tamil, Telugu, Bengali, Marathi, Gujarati).
-- [ ] Hybrid Search (combining BM25 lexical search with dense vector embeddings).
-- [ ] Cross-encoder reranking (e.g., `bge-reranker-large`) for precision top-K refinement.
-- [ ] Multi-turn query rewriting for conversational context resolution.
-- [ ] Built-in PDF canvas viewer with bounding box highlighting for cited chunks.
-- [ ] OCR integration (Tesseract / PaddleOCR) for scanned PDFs.
