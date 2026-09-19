@@ -102,3 +102,24 @@ class ChromaVectorStore(BaseVectorStore):
             return []
         ids = set(m["document_id"] for m in results["metadatas"] if "document_id" in m)
         return list(ids)
+
+    def get_chunk(self, document_id: str, chunk_index: int) -> Optional[Citation]:
+        try:
+            results = self.collection.get(
+                where={"$and": [{"document_id": document_id}, {"chunk_index": chunk_index}]},
+                include=["documents", "metadatas"]
+            )
+            if results and results.get("ids") and len(results["ids"]) > 0:
+                meta = results["metadatas"][0]
+                text = results["documents"][0]
+                return Citation(
+                    document_id=meta["document_id"],
+                    filename=meta["filename"],
+                    page_number=int(meta["page_number"]),
+                    chunk_index=int(meta["chunk_index"]),
+                    text_snippet=text,
+                    similarity_score=1.0
+                )
+        except Exception as e:
+            logger.debug(f"Could not retrieve chunk {chunk_index} for document {document_id}: {e}")
+        return None

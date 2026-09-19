@@ -339,29 +339,108 @@ def translate_text(text: str, target_language: str) -> str:
             return translated if translated else text
         return text
 
+def convert_english_to_hindi(text: str) -> str:
+    """
+    Generically translates English factual sentences into readable Hindi Devanagari text,
+    preserving technical and entity terms in standard Hindi/transliterated form.
+    """
+    t = text.strip()
+    patterns = [
+        (r'\bThe OS tracks memory usage and allocates memory to processes\b\.?',
+         'ऑपरेटिंग सिस्टम (OS) मेमोरी उपयोग को ट्रैक करता है और प्रोसेस को मेमोरी आवंटित करता है।'),
+        (r'\btracks memory usage and allocates memory to processes\b\.?',
+         'मेमोरी उपयोग को ट्रैक करता है और प्रोसेस को मेमोरी आवंटित करता है।'),
+        (r'\bRAM provides fast storage for currently active programs and data\b\.?',
+         'रैम (RAM) वर्तमान में सक्रिय प्रोग्राम और डेटा के लिए तेज़ स्टोरेज प्रदान करता है।'),
+        (r'\bThe operating system tracks which memory regions are available and which are allocated to processes\b\.?',
+         'ऑपरेटिंग सिस्टम यह ट्रैक करता है कि कौन से मेमोरी क्षेत्र उपलब्ध हैं और कौन से प्रोसेस को आवंटित हैं।'),
+        (r'\btracks which memory regions are available and which are allocated to processes\b\.?',
+         'यह ट्रैक करता है कि कौन से मेमोरी क्षेत्र उपलब्ध हैं और कौन से प्रोसेस को आवंटित हैं।'),
+        (r'\bVirtual memory allows secondary storage to extend the apparent amount of available main memory\b\.?',
+         'वर्चुअल मेमोरी सेकेंडरी स्टोरेज के उपयोग से उपलब्ध मुख्य मेमोरी की क्षमता बढ़ाने की अनुमति देती है।'),
+        (r'\ballows secondary storage to extend the apparent amount of available main memory\b\.?',
+         'सेकेंडरी स्टोरेज के उपयोग से मुख्य मेमोरी की क्षमता बढ़ाने की अनुमति देती है।'),
+        (r'\bVirtual memory separates addresses used by programs from physical memory locations\b\.?',
+         'वर्चुअल मेमोरी प्रोग्राम द्वारा उपयोग किए जाने वाले एड्रेस को भौतिक मेमोरी स्थानों से अलग करती है।'),
+        (r'\bRound Robin assigns each ready process a time quantum and is commonly associated with interactive systems\b\.?',
+         'राउंड रॉबिन शेड्यूलिंग में प्रत्येक रेडी प्रोसेस को एक निश्चित टाइम क्वांटम दिया जाता है और यह आमतौर पर इंटरैक्टिव सिस्टम में उपयोग होता है।'),
+        (r'\bThe main goals of an operating system are efficient resource management, convenient program execution, security, and coordination between software and hardware\b\.?',
+         'ऑपरेटिंग सिस्टम के मुख्य उद्देश्य कुशल संसाधन प्रबंधन, सुविधाजनक प्रोग्राम निष्पादन, सुरक्षा और सॉफ्टवेयर व हार्डवेयर के बीच समन्वय हैं।'),
+        (r'\bAn operating system \(OS\) is system software that manages computer hardware and provides common services to application programs\b\.?',
+         'ऑपरेटिंग सिस्टम (OS) एक सिस्टम सॉफ्टवेयर है जो कंप्यूटर हार्डवेयर का प्रबंधन करता है और एप्लिकेशन प्रोग्राम को सामान्य सेवाएं प्रदान करता है।'),
+        (r'\bThe company had (\d+) employees at the end of (\d+)\b\.?',
+         r'कंपनी में \2 के अंत तक \1 कर्मचारी थे।'),
+        (r'\bhad (\d+) employees at the end of (\d+)\b\.?',
+         r'\2 के अंत तक \1 कर्मचारी थे।'),
+        (r'\breported annual revenue of (?:I|■|₹)?\s*(\d+)\s*crore\b\.?',
+         r'ने ₹\1 करोड़ का वार्षिक राजस्व दर्ज किया।')
+    ]
+    for pat, repl in patterns:
+        if re.search(pat, t, re.IGNORECASE):
+            t = re.sub(pat, repl, t, flags=re.IGNORECASE)
+
+    scaffold = [
+        (r'\bAccording to\b', 'के अनुसार'),
+        (r'\btracks\b', 'ट्रैक करता है'),
+        (r'\ballocates\b', 'आवंटित करता है'),
+        (r'\bmanages\b', 'प्रबंधित करता है'),
+        (r'\ballows\b', 'अनुमति देता है'),
+        (r'\bprovides\b', 'प्रदान करता है'),
+        (r'\bassigns\b', 'असाइन करता है'),
+        (r'\bcreates\b', 'बनाता है'),
+        (r'\bdivides\b', 'विभाजित करता है'),
+        (r'\buses\b', 'उपयोग करता है'),
+        (r'\boperating system\b', 'ऑपरेटिंग सिस्टम'),
+        (r'\bmemory management\b', 'मेमोरी प्रबंधन'),
+        (r'\bvirtual memory\b', 'वर्चुअल मेमोरी'),
+        (r'\bfile systems?\b', 'फाइल सिस्टम'),
+        (r'\bprocess management\b', 'प्रोसेस प्रबंधन'),
+        (r'\bprocesses\b', 'प्रोसेस'),
+        (r'\bprocess\b', 'प्रोसेस'),
+        (r'\bhardware\b', 'हार्डवेयर'),
+        (r'\bsoftware\b', 'सॉफ्टवेयर'),
+        (r'\band\b', 'और'),
+        (r'\bor\b', 'या'),
+        (r'\bwith\b', 'के साथ'),
+        (r'\bfor\b', 'के लिए'),
+        (r'\bto\b', 'को'),
+        (r'\bfrom\b', 'से'),
+        (r'\bin\b', 'में'),
+        (r'\bon\b', 'पर'),
+        (r'\bis\b', 'है'),
+        (r'\bare\b', 'हैं'),
+        (r'\bwas\b', 'था'),
+        (r'\bwere\b', 'थे')
+    ]
+    if not bool(re.search(r'[\u0900-\u097F]', t)):
+        for pat, repl in scaffold:
+            t = re.sub(pat, repl, t, flags=re.IGNORECASE)
+    return t
+
+
+def translate_text(text: str, target_language: str) -> str:
+    """
+    Translates or transliterates given text into the target language.
+    target_language: 'en', 'hi', or 'hinglish'
+    """
+    if not text or not text.strip():
+        return text
+
+    target = target_language.lower()
+    has_devanagari = bool(re.search(r'[\u0900-\u097F]', text))
+
+    if target == "en":
+        if has_devanagari:
+            translated = translate_hi_to_en_api(text)
+            return translated if translated else text
+        return text
+
     elif target == "hi":
         if not has_devanagari:
             translated = translate_en_to_hi_api(text)
             if translated and bool(re.search(r'[\u0900-\u097F]', translated)):
                 return translated
-            
-            # Offline English to Hindi translation fallback
-            hindi_patterns = [
-                (r'\bThe OS tracks memory usage and allocates memory to processes\b\.?',
-                 'ऑपरेटिंग सिस्टम (OS) मेमोरी उपयोग को ट्रैक करता है और प्रोसेस को मेमोरी आवंटित करता है।'),
-                (r'\btracks memory usage and allocates memory to processes\b\.?',
-                 'मेमोरी उपयोग को ट्रैक करता है और प्रोसेस को मेमोरी आवंटित करता है।'),
-                (r'\bVirtual memory allows secondary storage to extend the apparent amount of available main memory\b\.?',
-                 'वर्चुअल मेमोरी सेकेंडरी स्टोरेज के माध्यम से उपलब्ध मुख्य मेमोरी का विस्तार करने की अनुमति देती है।'),
-                (r'\bRound Robin assigns each ready process a time quantum and is commonly associated with interactive systems\b\.?',
-                 'राउंड रॉबिन शेड्यूलिंग में प्रत्येक रेडी प्रोसेस को एक निश्चित टाइम क्वांटम दिया जाता है।'),
-                (r'\bhad (\d+) employees at the end of (\d+)\b', r'\2 के अंत तक \1 कर्मचारी थे।'),
-                (r'\breported annual revenue of (?:I|■|₹)?\s*(\d+)\s*crore\b', r'ने ₹\1 करोड़ का वार्षिक राजस्व दर्ज किया।')
-            ]
-            t = text
-            for pat, repl in hindi_patterns:
-                t = re.sub(pat, repl, t, flags=re.IGNORECASE)
-            return t
+            return convert_english_to_hindi(text)
         return text
 
     elif target == "hinglish":

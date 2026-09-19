@@ -67,37 +67,48 @@ class MockLLMService(BaseLLMService):
         # 1. Temporal conflict check (e.g. asking for 2026 when snippet only has 2025)
         if query_years:
             snippet_years = set(re.findall(r'\b(19\d\d|20\d\d)\b', normalized_snippet))
-            if snippet_years and not query_years.intersection(snippet_years):
+            if not query_years.intersection(snippet_years):
                 return None, False
 
         # 2. Split snippet into genuine sentences preserving unbroken flow
         sentences = [s.strip() for s in re.split(r'(?<=[.?!।])\s+', normalized_snippet) if s.strip()]
         factual_sentences = [s for s in sentences if not s.endswith('?') and s.count('?') == 0]
         if not factual_sentences:
-            factual_sentences = sentences
+            return None, False
 
         # Exclude common query stop words and generic words from sentence matching
         from backend.app.services.retrieval.reranker import GenericRAGReranker
         from backend.app.services.language.translator import devanagari_to_roman
 
-        content_query_words = {w for w in query_words if w not in GenericRAGReranker.GENERIC_WORDS and len(w) > 2}
+        content_query_words = {
+            w for w in query_words 
+            if (len(w) > 2 or w in GenericRAGReranker.COMMON_ACRONYMS)
+            and w not in GenericRAGReranker.GENERIC_WORDS
+        }
         expanded_query_words = set(content_query_words)
         for w in list(content_query_words):
+            if w in GenericRAGReranker.COMMON_ACRONYMS:
+                expanded_query_words.update(GenericRAGReranker.COMMON_ACRONYMS[w])
             roman = devanagari_to_roman(w).lower()
-            if roman and len(roman) > 2:
+            if roman and (len(roman) > 2 or roman in GenericRAGReranker.COMMON_ACRONYMS):
                 expanded_query_words.add(roman)
+                if roman in GenericRAGReranker.COMMON_ACRONYMS:
+                    expanded_query_words.update(GenericRAGReranker.COMMON_ACRONYMS[roman])
             for syn in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS.get(w, []):
                 expanded_query_words.add(syn.lower())
+            if roman:
+                for syn in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS.get(roman, []):
+                    expanded_query_words.add(syn.lower())
 
         scored_sentences = []
         for idx, s in enumerate(factual_sentences):
             s_lower = s.lower()
             score = 0.0
-            for w in expanded_query_words:
-                if re.search(r'\b' + re.escape(w) + r'\b', s_lower):
-                    score += 2.0
-                    if w in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS:
-                        score += 3.0
+            matched_words = [w for w in expanded_query_words if re.search(r'\b' + re.escape(w) + r'\b', s_lower)]
+            for w in matched_words:
+                score += 2.0
+                if w in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS:
+                    score += 3.0
             for y in query_years:
                 if y in s:
                     score += 3.0
@@ -114,11 +125,15 @@ class MockLLMService(BaseLLMService):
             if len(s) < 50 and not s.endswith(('.', '!', '?', '।')) and not has_pred:
                 score -= 3.5
 
-            scored_sentences.append((score, idx, s))
+            scored_sentences.append((score, len(matched_words), idx, s))
 
-        scored_sentences.sort(key=lambda x: x[0], reverse=True)
+        scored_sentences.sort(key=lambda x: (x[0], x[1]), reverse=True)
         if scored_sentences and scored_sentences[0][0] >= 1.5:
-            top_score, top_idx, top_sent = scored_sentences[0]
+            top_score, top_match_count, top_idx, top_sent = scored_sentences[0]
+
+            # If query has specific content words, candidate sentence must match at least one (unless query is year-only)
+            if content_query_words and top_match_count == 0 and not query_years:
+                return None, False
 
             # If adjacent sentence in the same snippet provides continuing explanation, include it
             result_sents = [top_sent]
@@ -142,7 +157,7 @@ class MockLLMService(BaseLLMService):
             return clean_fact.strip(), True
 
         # If no content words matched at all, there is no grounded answer
-        if content_query_words and scored_sentences and scored_sentences[0][0] < 1.0:
+        if content_query_words and scored_sentences and (scored_sentences[0][0] < 1.0 or scored_sentences[0][1] == 0):
             return None, False
 
         return snippet, True

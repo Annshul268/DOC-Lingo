@@ -339,5 +339,48 @@ async def test_scenario_18_os_cross_lingual_linux_type(rag_service):
     assert len(cites) > 0
     assert cites[0].page_number == 2
     assert "open-source" in ans.lower() or "operating-system" in ans.lower()
+ 
+@pytest.mark.asyncio
+async def test_scenario_19_os_acronym_query_memory_management(rag_service):
+    """Test 19: Query using acronym 'OS' must retrieve explanation and NOT return insufficient info."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What does memory management do in OS?",
+        target_language="en"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number in (1, 3)
+    assert "memory" in ans.lower()
+    assert any(term in ans.lower() for term in ["track", "allocat", "virtual memory", "process", "storage"])
 
+@pytest.mark.asyncio
+async def test_scenario_20_os_hinglish_memory_management(rag_service):
+    """Test 20: Hinglish query for memory management must retrieve explanation and NOT return insufficient info."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="Operating system mein memory management kya karta hai?",
+        target_language="hinglish"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number in (1, 3)
+    assert "memory" in ans.lower()
+    assert any(term in ans.lower() for term in ["track", "allocate", "storage", "ram", "process"])
 
+@pytest.mark.asyncio
+async def test_scenario_21_novatech_no_context_revenue_2026_zero_citations(rag_service):
+    """Test 21: Query for NovaTech 2026 revenue must return not found and zero citations."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What was NovaTech 2026 revenue?",
+        target_language="en"
+    )
+    assert len(cites) == 0
+    assert any(m in ans.lower() for m in ["could not find", "couldn't find", "not find", "no information", "2026"])
+
+@pytest.mark.asyncio
+async def test_scenario_22_os_main_responsibilities(rag_service):
+    """Test 22: Query for OS main responsibilities must retrieve Page 1 fundamentals."""
+    ans, cites, _, _ = await rag_service.answer_query(
+        query="What are the main responsibilities of an operating system?",
+        target_language="en"
+    )
+    assert len(cites) > 0
+    assert cites[0].page_number == 1
+    assert any(term in ans.lower() for term in ["management", "resource", "hardware", "software", "process"])

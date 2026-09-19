@@ -134,6 +134,28 @@ class RAGService:
             return True
         return False
 
+
+
+    def _enrich_candidates_with_context(self, candidates: List[Citation]) -> List[Citation]:
+        """Enriches short candidate chunks or isolated headings with adjacent paragraph context from the same document and page."""
+        enriched = []
+        for c in candidates:
+            if len(c.text_snippet.strip()) < 120 and c.chunk_index is not None and c.document_id:
+                next_c = self.vector_store.get_chunk(c.document_id, c.chunk_index + 1)
+                if next_c and next_c.page_number == c.page_number:
+                    combined_text = f"{c.text_snippet.strip()}\n\n{next_c.text_snippet.strip()}"
+                    enriched.append(Citation(
+                        document_id=c.document_id,
+                        filename=c.filename,
+                        page_number=c.page_number,
+                        chunk_index=c.chunk_index,
+                        text_snippet=combined_text,
+                        similarity_score=c.similarity_score
+                    ))
+                    continue
+            enriched.append(c)
+        return enriched
+
     async def answer_query(
         self,
         query: str,
@@ -151,27 +173,25 @@ class RAGService:
         # 3. Embed query using multilingual embedding
         query_vector = self.embedding_service.embed_query(query)
 
-        # 4. Search candidate pool in ChromaDB
-        candidate_k = max(8, settings.TOP_K * 2)
+        # 4. Search candidate pool in ChromaDB with wider window
+        candidate_k = max(16, settings.TOP_K * 4)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
             document_id=document_id
         )
 
-        # 5. Rerank and filter candidates
-        reranked_citations = self.reranker.rerank(
+        # 5. Enrich candidates with neighboring context if needed
+        enriched_candidates = self._enrich_candidates_with_context(candidates)
+
+        # 6. Rerank candidates using multi-stage adaptive scoring
+        relevant_citations = self.reranker.rerank(
             query=query,
-            citations=candidates,
+            citations=enriched_candidates,
             top_k=settings.TOP_K
         )
 
-        # Filter by similarity threshold
-        relevant_citations = [
-            c for c in reranked_citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
-        ]
-
-        # 6. LLM Grounded Generation
+        # 7. LLM Grounded Generation
         answer = await self.llm_service.generate_response(
             query=query,
             context_chunks=relevant_citations,
@@ -201,20 +221,20 @@ class RAGService:
             final_lang = "en"
 
         query_vector = self.embedding_service.embed_query(query)
-        candidate_k = max(8, settings.TOP_K * 2)
+        candidate_k = max(16, settings.TOP_K * 4)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
             document_id=document_id
         )
-        reranked_citations = self.reranker.rerank(
+
+        enriched_candidates = self._enrich_candidates_with_context(candidates)
+
+        relevant_citations = self.reranker.rerank(
             query=query,
-            citations=candidates,
+            citations=enriched_candidates,
             top_k=settings.TOP_K
         )
-        relevant_citations = [
-            c for c in reranked_citations if c.similarity_score >= settings.SIMILARITY_THRESHOLD
-        ]
 
         stream_gen = self.llm_service.generate_stream(
             query=query,

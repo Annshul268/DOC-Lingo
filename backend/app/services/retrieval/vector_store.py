@@ -28,3 +28,8 @@ class BaseVectorStore(ABC):
     def list_document_ids(self) -> List[str]:
         """List distinct document IDs present in the store."""
         pass
+
+    @abstractmethod
+    def get_chunk(self, document_id: str, chunk_index: int) -> Optional[Citation]:
+        """Fetch a specific chunk by its document_id and chunk_index."""
+        pass

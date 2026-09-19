@@ -23,7 +23,22 @@ class GenericRAGReranker:
         'has', 'have', 'had', 'been', 'will', 'would', 'could', 'should',
         'kya', 'hai', 'hain', 'tha', 'thi', 'the', 'ka', 'ki', 'ke', 'ko', 'me', 'mein',
         'se', 'par', 'aur', 'ya', 'kitna', 'kitne', 'kitni', 'kab', 'kahan', 'kaise',
-        'tak', 'ek', 'bhi', 'kisi', 'kisko', 'iska', 'iski', 'iske'
+        'tak', 'ek', 'bhi', 'kisi', 'kisko', 'iska', 'iski', 'iske',
+        'karta', 'karti', 'karte', 'kare', 'karna', 'karke', 'hota', 'hoti', 'hote',
+        'kaam', 'kis', 'tarah', 'waqt', 'baare', 'kuch', 'hoga', 'hogi',
+        'kaun', 'kaunsa', 'kaunsi', 'kaunse', 'diya', 'diye', 'gaya', 'gayi', 'gaye'
+    }
+
+    COMMON_ACRONYMS = {
+        'os': ['operating', 'system'],
+        'ai': ['artificial', 'intelligence'],
+        'ui': ['user', 'interface'],
+        'db': ['database'],
+        'fs': ['file', 'system'],
+        'ip': ['internet', 'protocol'],
+        'io': ['input', 'output'],
+        'cpu': ['processor', 'central', 'processing', 'unit'],
+        'ram': ['memory', 'random', 'access', 'memory']
     }
 
     _BASE_SYNONYMS = {
@@ -43,7 +58,20 @@ class GenericRAGReranker:
         'कारण': ['cause', 'causes', 'reason', 'conditions'],
         'कारणों': ['cause', 'causes', 'reason', 'conditions'],
         'प्राथमिक': ['primary'],
-        'कुंजी': ['key']
+        'कुंजी': ['key'],
+        'प्रक्रिया': ['process', 'processes'],
+        'प्रोसेस': ['process', 'processes'],
+        'शेड्यूलिंग': ['scheduling', 'scheduler'],
+        'सिस्टम': ['system', 'systems'],
+        'मैनेजमेंट': ['management', 'manager'],
+        'प्रबंधन': ['management', 'manage', 'manager'],
+        'सुरक्षा': ['security', 'protection', 'secure'],
+        'मेमोरी': ['memory', 'ram', 'storage'],
+        'स्मृति': ['memory', 'ram'],
+        'फ़ाइल': ['file', 'files', 'filesystem'],
+        'फाइल': ['file', 'files', 'filesystem'],
+        'नेटवर्क': ['network', 'networking'],
+        'कर्नेल': ['kernel']
     }
 
     CROSS_LINGUAL_SYNONYMS = {}
@@ -79,9 +107,11 @@ class GenericRAGReranker:
 
     def _extract_focused_excerpt(self, text: str, content_words: set, query_years: set) -> str:
         """Extracts the specific paragraph or section that actually contains the factual evidence."""
-        # Generic cleaning of page headers/footers
+        # Generic cleaning of page headers/footers and unmapped glyph artifacts
         cleaned_text = re.sub(r'(?i)\b(?:page\s*\d+(?:\s*(?:of|—|-)\s*\d+)?|\d+\s*\|\s*page)\b', '', text)
-        cleaned_text = re.sub(r'^[A-Za-z0-9\s—–•]+\s*[—–•]\s*Page\s*\d+\s*$', '', cleaned_text, flags=re.MULTILINE)
+        cleaned_text = re.sub(r'(?i)^[A-Za-z0-9\s—–•?]+\s*[—–•?]\s*(?:Page\s*\d+|\d+)\s*$', '', cleaned_text, flags=re.MULTILINE)
+        cleaned_text = re.sub(r'(?i)\b[A-Za-z0-9\s—–•]+\s*[?•—–-]\s*Page\s*\d+\s*$', '', cleaned_text, flags=re.MULTILINE)
+        cleaned_text = re.sub(r'[ \t]+\?[ \t]*$', '', cleaned_text, flags=re.MULTILINE)
 
         # Split text into paragraphs preserving structure
         paragraphs = [p.strip() for p in re.split(r'\n\s*\n|\n(?=[A-Z][a-zA-Z\s]{2,35}:)', cleaned_text) if p.strip()]
@@ -132,20 +162,44 @@ class GenericRAGReranker:
 
         # 2. Extract content keywords and expand cross-lingually (excluding query years)
         raw_words = re.findall(r'[a-zA-Z0-9\u0900-\u097F]+', query.lower())
-        query_keywords = [w for w in raw_words if len(w) > 2 and w not in self.STOPWORDS and w not in query_years]
+        query_keywords = [
+            w for w in raw_words 
+            if (len(w) > 2 or w in self.COMMON_ACRONYMS)
+            and w not in self.STOPWORDS 
+            and w not in query_years
+        ]
 
         expanded_keywords = set()
         for kw in query_keywords:
             expanded_keywords.add(kw)
+            if kw in self.COMMON_ACRONYMS:
+                expanded_keywords.update(self.COMMON_ACRONYMS[kw])
             roman = devanagari_to_roman(kw).lower()
-            if roman and len(roman) > 2:
+            if roman and (len(roman) > 2 or roman in self.COMMON_ACRONYMS):
                 expanded_keywords.add(roman)
+                if roman in self.COMMON_ACRONYMS:
+                    expanded_keywords.update(self.COMMON_ACRONYMS[roman])
             if kw in self.CROSS_LINGUAL_SYNONYMS:
                 expanded_keywords.update(self.CROSS_LINGUAL_SYNONYMS[kw])
             if roman in self.CROSS_LINGUAL_SYNONYMS:
                 expanded_keywords.update(self.CROSS_LINGUAL_SYNONYMS[roman])
 
-        content_query_words = {w for w in expanded_keywords if w not in self.GENERIC_WORDS and len(w) > 2}
+        content_query_words = {
+            w for w in expanded_keywords 
+            if w not in self.GENERIC_WORDS and (len(w) > 2 or w in self.COMMON_ACRONYMS)
+        }
+
+        # Construct key bigram phrases from adjacent query keywords
+        phrase_patterns = []
+        for i in range(len(query_keywords) - 1):
+            w1, w2 = query_keywords[i], query_keywords[i+1]
+            syn1 = [w1] + self.CROSS_LINGUAL_SYNONYMS.get(w1, []) + [devanagari_to_roman(w1).lower()]
+            syn2 = [w2] + self.CROSS_LINGUAL_SYNONYMS.get(w2, []) + [devanagari_to_roman(w2).lower()]
+            for s1 in syn1:
+                for s2 in syn2:
+                    if len(s1) > 2 and len(s2) > 2:
+                        phrase_patterns.append(f"{s1} {s2}")
+        phrase_set = set(phrase_patterns)
 
         # Check if query is explanatory/functional ("what does X do", "how does X work", "kaise kaam karta hai")
         is_explanatory_query = any(q_word in query.lower() for q_word in [
@@ -180,14 +234,17 @@ class GenericRAGReranker:
                 conflicting_years = chunk_years - query_years
                 if conflicting_years and not matching_years:
                     continue
+                if not chunk_years and not matching_years:
+                    score -= 0.30
                 if matching_years:
-                    score += 0.25
+                    score += 0.30
 
-            # --- Signal 3: Lexical & Entity Overlap with Cross-Lingual Synonyms ---
+            # --- Signal 3: Lexical, Entity & Phrase Overlap ---
             matched_content_words = {w for w in content_query_words if w in text_lower}
             topic_concept_matches = sum(
                 1 for kw in content_query_words if any(syn in text_lower for syn in self.CROSS_LINGUAL_SYNONYMS.get(kw, []))
             )
+            has_phrase_match = any(p in text_lower for p in phrase_set)
 
             # If query has specific content keywords, chunk MUST match at least one to be supporting evidence
             if content_query_words and not matched_content_words:
@@ -198,6 +255,8 @@ class GenericRAGReranker:
                 score += 0.25 * kw_ratio
             if topic_concept_matches > 0:
                 score += 0.25
+            if has_phrase_match:
+                score += 0.30
 
             # --- Signal 4: Explanatory Predicate vs. Mere List vs. Heading Only ---
             has_pred = any(re.search(r'\b' + re.escape(pred) + r'\b', text_lower) for pred in self.EXPLANATORY_PREDICATES)
@@ -215,6 +274,12 @@ class GenericRAGReranker:
 
             # Extract the focused supporting excerpt
             focused_snippet = self._extract_focused_excerpt(text, content_query_words, query_years)
+            is_interrogative = bool(re.search(
+                r'(?i)\b(?:what|how|why|when|where|which|who|kya|kaise|kitna|kab|kahan|kis)\b.*\?$',
+                focused_snippet.strip()
+            ))
+            if is_interrogative and len(focused_snippet) < 180:
+                continue
 
             # Bound score to [0.0, 1.0] for clean reporting
             normalized_score = round(max(0.0, min(1.0, score)), 4)
@@ -248,18 +313,26 @@ class GenericRAGReranker:
         top_score = deduped[0][0]
         top_has_concept = deduped[0][1] > 0
 
-        # Minimum sufficient evidence:
-        # If top chunk is highly confident and comprehensive, only keep additional chunks
-        # if they genuinely add supporting evidence (close in score and sharing topic concept)
+        # Relative adaptive evidence selection:
+        # Answerability check: if top_score is extremely weak and no content words matched, return empty
+        if top_score < 0.25 and not top_has_concept:
+            return []
+
         filtered_results = []
         for s, concept_matches, cite in deduped[:top_k]:
             if top_has_concept and concept_matches == 0:
                 continue
-            if top_score >= 0.70:
-                if s >= max(0.50, top_score - 0.12):
+            # Keep top candidate if it meets the baseline answerability
+            if not filtered_results:
+                if s >= 0.25 or top_has_concept:
+                    filtered_results.append(cite)
+                continue
+            # Keep secondary candidates only if they genuinely support the topic and are close to top_score
+            if top_score >= 0.65:
+                if s >= max(0.40, top_score - 0.15):
                     filtered_results.append(cite)
             else:
-                if s >= 0.35:
+                if s >= max(0.28, top_score - 0.10):
                     filtered_results.append(cite)
 
         return filtered_results
