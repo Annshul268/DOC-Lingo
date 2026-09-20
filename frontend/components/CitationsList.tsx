@@ -88,7 +88,7 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
             <div key={groupIdx} className="space-y-2">
               {/* Document Filename - Displayed ONLY ONCE per document */}
               <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                <FileText className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="truncate">{group.filename}</span>
               </div>
 

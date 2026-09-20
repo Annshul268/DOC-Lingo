@@ -23,6 +23,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Initialize or restore active user on mount
   useEffect(() => {
@@ -278,7 +280,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-slate-950 transition-colors">
+    <div className="flex h-screen overflow-hidden bg-[#fcfdfa] dark:bg-stone-950 transition-colors">
       <Sidebar
         documents={documents}
         selectedDocId={activeSession ? activeSession.selectedDocId : null}
@@ -294,6 +296,10 @@ export default function Home() {
         onRenameSession={handleRenameSession}
         currentUser={currentUser}
         onUserChange={handleUserChange}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        isAuthModalOpen={isAuthModalOpen}
+        setIsAuthModalOpen={setIsAuthModalOpen}
       />
       <ChatArea
         messages={activeSession ? activeSession.messages : []}
@@ -309,6 +315,13 @@ export default function Home() {
         onRenameSession={(title) => {
           if (activeSession) handleRenameSession(activeSession.id, title);
         }}
+        currentUser={currentUser}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onUpload={handleUpload}
+        isUploading={isUploading}
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onNewChat={handleNewChat}
       />
     </div>
   );
