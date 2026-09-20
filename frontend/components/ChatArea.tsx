@@ -237,48 +237,165 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         className="hidden"
       />
 
-      {/* Top Floating Banner (Inspired by the Quillr top pill badge) */}
-      <div className="w-full pt-3 px-4 flex justify-center z-20 shrink-0">
-        <div className="inline-flex items-center justify-between gap-3 px-4 py-1.5 rounded-full bg-white/95 dark:bg-[#1c1917]/95 border border-amber-200/80 dark:border-stone-800 shadow-xs backdrop-blur-sm text-xs text-stone-600 dark:text-stone-300 max-w-2xl w-full">
-          {/* Left status pill */}
-          <div className="flex items-center gap-2 truncate">
-            {onToggleSidebar && (
-              <button
-                onClick={onToggleSidebar}
-                className="p-1 rounded-full hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors shrink-0"
-                title={isSidebarOpen ? 'Hide Sidebar' : 'Open Document Library & Chats'}
-              >
-                <PanelLeft className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-            <span className="truncate text-[11px] sm:text-xs font-normal">
-              {documents.length > 0
-                ? `${documents.length} document${documents.length > 1 ? 's' : ''} indexed • Cross-lingual RAG Active`
-                : 'Isolated Workspace • Ask across English, Hindi & Hinglish'}
-            </span>
-          </div>
-
-          {/* Right Action Button: Warm Golden Pill Badge */}
-          <div className="flex items-center gap-2 shrink-0">
+      {/* Top Header & Options Bar */}
+      <header className="border-b border-stone-200/80 dark:border-stone-800 bg-[#fffdf9]/95 dark:bg-[#141210]/95 px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 z-20 shrink-0 backdrop-blur-sm">
+        {/* Left Side: Sidebar Toggle, Conversation Title, Upload Button, Context Dropdown */}
+        <div className="flex items-center flex-wrap gap-2.5 min-w-0">
+          {onToggleSidebar && (
             <button
-              onClick={onOpenAuthModal}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-semibold text-[11px] transition-colors shadow-2xs"
-              title="Manage workspace or switch user account"
+              onClick={onToggleSidebar}
+              className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors shrink-0"
+              title={isSidebarOpen ? 'Hide Sidebar' : 'Open Sidebar'}
             >
-              <Sparkles className="w-3 h-3 text-stone-900" />
-              <span className="max-w-[110px] truncate">
-                {currentUser?.is_guest ? 'Guest Session' : currentUser?.username || 'Account'}
-              </span>
+              <PanelLeft className="w-4 h-4" />
             </button>
+          )}
+
+          {/* Active Conversation Title */}
+          {isEditingTitle ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveRename();
+                  if (e.key === 'Escape') setIsEditingTitle(false);
+                }}
+                autoFocus
+                className="text-xs font-semibold px-2 py-1 rounded border border-amber-400 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none"
+              />
+              <button onClick={saveRename} className="p-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-stone-800 rounded">
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => setIsEditingTitle(false)} className="p-1 text-stone-400 hover:bg-amber-50 dark:hover:bg-stone-800 rounded">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0 max-w-[180px] md:max-w-xs">
+              <span className="font-semibold text-xs md:text-sm text-stone-800 dark:text-stone-200 truncate">
+                {activeSessionTitle || 'Conversation'}
+              </span>
+              {onRenameSession && (
+                <button
+                  onClick={startRename}
+                  className="p-1 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 rounded hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors shrink-0"
+                  title="Rename conversation"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="hidden sm:block h-4 w-px bg-stone-200 dark:bg-stone-800 shrink-0" />
+
+          {/* Upload PDF / DOCX Button */}
+          <button
+            onClick={() => heroFileInputRef.current?.click()}
+            disabled={isUploading}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-dashed border-stone-300 dark:border-stone-700 hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/30 text-stone-700 dark:text-stone-300 text-xs transition-colors shrink-0"
+          >
+            {isUploading ? (
+              <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+            ) : (
+              <UploadCloud className="w-3.5 h-3.5 text-amber-500" />
+            )}
+            <span>{isUploading ? 'Indexing...' : 'Upload PDF / DOCX'}</span>
+          </button>
+
+          {/* Context Dropdown */}
+          <div className="relative shrink-0" ref={dropdownRef}>
+            <button
+              onClick={() => setIsContextDropdownOpen(!isContextDropdownOpen)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200/90 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 hover:bg-amber-50/40 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 text-xs transition-colors"
+            >
+              <span className="text-stone-400">Context:</span>
+              <span className="font-semibold text-amber-900 dark:text-amber-300 max-w-[140px] truncate">
+                {selectedDoc ? selectedDoc.filename : `All Documents (${documents.length})`}
+              </span>
+              <ChevronDown className="w-3 h-3 text-stone-400" />
+            </button>
+
+            {isContextDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-800 rounded-2xl shadow-lg z-50 p-1.5 space-y-1 text-left">
+                <button
+                  onClick={() => {
+                    onSelectDoc(null);
+                    setIsContextDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors ${
+                    selectedDocId === null
+                      ? 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
+                      : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50/60 dark:hover:bg-stone-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-3.5 h-3.5 text-amber-600" />
+                    <span>All Documents</span>
+                  </div>
+                  {selectedDocId === null && <Check className="w-3 h-3 text-amber-600" />}
+                </button>
+
+                {documents.map((doc) => {
+                  const isSelected = selectedDocId === doc.document_id;
+                  return (
+                    <button
+                      key={doc.document_id}
+                      onClick={() => {
+                        onSelectDoc(doc.document_id);
+                        setIsContextDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors ${
+                        isSelected
+                          ? 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
+                          : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50/60 dark:hover:bg-stone-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-600' : 'text-stone-400'}`} />
+                        <span className="truncate">{doc.filename}</span>
+                      </div>
+                      {isSelected && <Check className="w-3 h-3 text-amber-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-      </div>
+
+        {/* Right Side: LanguageSelector, ThemeToggle, Clear Chat & New Chat */}
+        <div className="flex items-center gap-2 shrink-0">
+          <LanguageSelector value={targetLanguage} onChange={onLanguageChange} />
+          <ThemeToggle />
+          {messages.length > 0 && (
+            <button
+              onClick={onClearChat}
+              className="p-1.5 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors"
+              title="Clear messages"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onNewChat && (
+            <button
+              onClick={onNewChat}
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-semibold text-xs transition-colors shadow-2xs"
+              title="Start a new chat"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New</span>
+            </button>
+          )}
+        </div>
+      </header>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 py-4 flex flex-col">
         {messages.length === 0 ? (
-          /* Empty / Hero State (Faithfully formatted like the reference layout with Quillr color theme) */
+          /* Empty / Hero State */
           <div className="flex-1 flex flex-col items-center justify-center max-w-2xl w-full mx-auto text-center px-2 py-6">
             {/* Mascot Illustration */}
             <div className="mb-2 transition-transform hover:scale-105 duration-300">
@@ -290,7 +407,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               How can I help you?
             </h1>
 
-            {/* Centered Large Prompt Input Pill with Warm Amber Border & Button */}
+            {/* Centered Large Prompt Input Pill */}
             <div className="w-full relative flex items-center rounded-full border border-amber-200/90 dark:border-stone-800 bg-white dark:bg-stone-900 shadow-xs hover:shadow-sm focus-within:shadow-md focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-400/20 transition-all pl-5 pr-2 py-1.5 mb-4">
               <input
                 ref={inputRef}
@@ -317,7 +434,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </button>
             </div>
 
-            {/* 2x2 Suggestion Cards Grid with Warm Cream / Ivory Background */}
+            {/* 2x2 Suggestion Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left">
               {suggestionCards.map((card, idx) => (
                 <button
@@ -337,148 +454,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </button>
               ))}
             </div>
-
-            {/* Quick Upload & Document Scope Indicator */}
-            <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5 text-[11px] text-stone-500 dark:text-stone-400">
-              <button
-                onClick={() => heroFileInputRef.current?.click()}
-                disabled={isUploading}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-dashed border-stone-300 dark:border-stone-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 text-stone-600 dark:text-stone-300 transition-colors"
-              >
-                {isUploading ? (
-                  <Loader2 className="w-3 h-3 text-emerald-600 animate-spin" />
-                ) : (
-                  <UploadCloud className="w-3 h-3 text-emerald-600" />
-                )}
-                <span>{isUploading ? 'Indexing Document...' : 'Upload PDF / DOCX'}</span>
-              </button>
-
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setIsContextDropdownOpen(!isContextDropdownOpen)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-stone-200 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors"
-                >
-                  <span className="text-stone-400">Context:</span>
-                  <span className="font-medium text-emerald-700 dark:text-emerald-400 max-w-[140px] truncate">
-                    {selectedDoc ? selectedDoc.filename : `All Documents (${documents.length})`}
-                  </span>
-                  <ChevronDown className="w-3 h-3 text-stone-400" />
-                </button>
-
-                {isContextDropdownOpen && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-lg z-50 p-1.5 space-y-1 text-left">
-                    <button
-                      onClick={() => {
-                        onSelectDoc(null);
-                        setIsContextDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                        selectedDocId === null
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold'
-                          : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>All Documents</span>
-                      </div>
-                      {selectedDocId === null && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                    </button>
-
-                    {documents.map((doc) => {
-                      const isSelected = selectedDocId === doc.document_id;
-                      return (
-                        <button
-                          key={doc.document_id}
-                          onClick={() => {
-                            onSelectDoc(doc.document_id);
-                            setIsContextDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                            isSelected
-                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold'
-                              : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-600' : 'text-stone-400'}`} />
-                            <span className="truncate">{doc.filename}</span>
-                          </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <LanguageSelector value={targetLanguage} onChange={onLanguageChange} />
-              <ThemeToggle />
-            </div>
           </div>
         ) : (
           /* Active Conversation Messages View */
           <div className="max-w-3xl w-full mx-auto space-y-6 pb-4">
-            {/* Conversation Header Pill */}
-            <div className="flex items-center justify-between py-2 border-b border-amber-100 dark:border-stone-800 text-xs">
-              {isEditingTitle ? (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    value={titleInput}
-                    onChange={(e) => setTitleInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') saveRename();
-                      if (e.key === 'Escape') setIsEditingTitle(false);
-                    }}
-                    autoFocus
-                    className="text-xs font-semibold px-2 py-1 rounded border border-amber-400 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none"
-                  />
-                  <button onClick={saveRename} className="p-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-stone-800 rounded">
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => setIsEditingTitle(false)} className="p-1 text-stone-400 hover:bg-amber-50 dark:hover:bg-stone-800 rounded">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="font-semibold text-stone-800 dark:text-stone-200 truncate">
-                    {activeSessionTitle || 'Conversation'}
-                  </span>
-                  {onRenameSession && (
-                    <button
-                      onClick={startRename}
-                      className="p-1 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 rounded hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors"
-                      title="Rename conversation"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <LanguageSelector value={targetLanguage} onChange={onLanguageChange} />
-                <ThemeToggle />
-                <button
-                  onClick={onClearChat}
-                  className="p-1.5 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-amber-50 dark:hover:bg-stone-800 transition-colors"
-                  title="Clear messages"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </button>
-                {onNewChat && (
-                  <button
-                    onClick={onNewChat}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-semibold text-[11px] transition-colors shadow-2xs"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>New</span>
-                  </button>
-                )}
-              </div>
-            </div>
 
             {/* Message List */}
             {messages.map((msg) => (
