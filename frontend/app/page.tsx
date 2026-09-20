@@ -28,6 +28,38 @@ export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDocSelectModalOpen, setIsDocSelectModalOpen] = useState(false);
 
+  // Restore and persist sidebar state across reloads (default open until manually closed)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('doc_lingo_sidebar_open');
+      if (saved !== null) {
+        setIsSidebarOpen(saved === 'true');
+      } else {
+        setIsSidebarOpen(true);
+        localStorage.setItem('doc_lingo_sidebar_open', 'true');
+      }
+    } catch {
+      setIsSidebarOpen(true);
+    }
+  }, []);
+
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('doc_lingo_sidebar_open', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleCloseSidebar = () => {
+    setIsSidebarOpen(false);
+    try {
+      localStorage.setItem('doc_lingo_sidebar_open', 'false');
+    } catch {}
+  };
+
   // Initialize or restore active user on mount
   useEffect(() => {
     async function initUserAndWorkspace() {
@@ -305,7 +337,7 @@ export default function Home() {
         currentUser={currentUser}
         onUserChange={handleUserChange}
         isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+        onClose={handleCloseSidebar}
         isAuthModalOpen={isAuthModalOpen}
         setIsAuthModalOpen={setIsAuthModalOpen}
       />
@@ -328,7 +360,7 @@ export default function Home() {
         onUpload={handleUpload}
         isUploading={isUploading}
         isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onToggleSidebar={handleToggleSidebar}
         onNewChat={handleNewChat}
       />
       <DocumentSelectModal

@@ -19,8 +19,7 @@ import {
   Pencil,
   X,
   UploadCloud,
-  PanelLeft,
-  Plus
+  PanelLeft
 } from 'lucide-react';
 
 interface ChatAreaProps {
@@ -352,7 +351,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         </div>
 
-        {/* Right Side: LanguageSelector, ThemeToggle, Clear Chat & New Chat */}
+        {/* Right Side: LanguageSelector, ThemeToggle, Clear Chat */}
         <div className="flex items-center gap-2 shrink-0">
           <LanguageSelector value={targetLanguage} onChange={onLanguageChange} />
           <ThemeToggle />
@@ -363,16 +362,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               title="Clear messages"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {onNewChat && (
-            <button
-              onClick={onNewChat}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 font-semibold text-xs transition-colors shadow-2xs"
-              title="Start a new chat"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New</span>
             </button>
           )}
         </div>
