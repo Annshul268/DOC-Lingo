@@ -294,7 +294,8 @@ class RAGService:
         query: str,
         user_id: str = "default_user",
         document_id: Optional[str] = None,
-        target_language: str = "auto"
+        target_language: str = "auto",
+        response_style: str = "explain"
     ) -> Tuple[str, List[Citation], str, str]:
         # 1. Detect query language
         detected_lang = detect_language(query)
@@ -328,7 +329,7 @@ class RAGService:
             document_id=document_id
         )
 
-        logger.info(f"=== RAG QUERY: '{query}' [User: {user_id}] [Lang: {detected_lang} -> {final_lang}] ===")
+        logger.info(f"=== RAG QUERY: '{query}' [User: {user_id}] [Lang: {detected_lang} -> {final_lang}] [Style: {response_style}] ===")
         logger.info(f"Retrieved {len(candidates)} candidate chunks from ChromaDB (pool size {candidate_k})")
         for idx, c in enumerate(candidates[:6], 1):
             logger.debug(f"  Candidate {idx}: P{c.page_number} C{c.chunk_index} [Score: {c.similarity_score:.4f}] Sec: {c.section_heading} | Text: {repr(c.text_snippet[:80])}")
@@ -349,7 +350,8 @@ class RAGService:
         answer = await self.llm_service.generate_response(
             query=query,
             context_chunks=relevant_citations,
-            target_language=final_lang
+            target_language=final_lang,
+            response_style=response_style
         )
 
         # Clear citations if the generated answer indicates information was not found
@@ -368,7 +370,8 @@ class RAGService:
         query: str,
         user_id: str = "default_user",
         document_id: Optional[str] = None,
-        target_language: str = "auto"
+        target_language: str = "auto",
+        response_style: str = "explain"
     ) -> Tuple[AsyncGenerator[str, None], List[Citation], str, str]:
         detected_lang = detect_language(query)
         final_lang = detected_lang if target_language == "auto" else target_language
@@ -401,6 +404,7 @@ class RAGService:
         stream_gen = self.llm_service.generate_stream(
             query=query,
             context_chunks=relevant_citations,
-            target_language=final_lang
+            target_language=final_lang,
+            response_style=response_style
         )
         return stream_gen, relevant_citations, detected_lang, final_lang

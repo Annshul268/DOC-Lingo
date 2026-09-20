@@ -203,7 +203,13 @@ class MockLLMService(BaseLLMService):
 
         return snippet, True
 
-    async def generate_response(self, query: str, context_chunks: List[Citation], target_language: str) -> str:
+    async def generate_response(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> str:
         if not context_chunks:
             return self._no_context_message(query, target_language)
 
@@ -232,15 +238,90 @@ class MockLLMService(BaseLLMService):
 
         translated_body = translate_text(concise_fact, target_language)
 
-        if target_language == "hi":
-            return f"दस्तावेज़ '{top_chunk.filename}' (पृष्ठ {top_chunk.page_number}) के अनुसार:\n\n{translated_body}"
-        elif target_language == "hinglish":
-            return f"Document '{top_chunk.filename}' (Page {top_chunk.page_number}) ke mutaabiq:\n\n{translated_body}"
-        else:
-            return f"According to '{top_chunk.filename}' (Page {top_chunk.page_number}):\n\n{translated_body}"
+        # Format translated_body according to response_style
+        style_norm = (response_style or "explain").lower().strip()
 
-    async def generate_stream(self, query: str, context_chunks: List[Citation], target_language: str) -> AsyncGenerator[str, None]:
-        full_text = await self.generate_response(query, context_chunks, target_language)
+        if style_norm in ["briefly", "brief", "concise"]:
+            # Strictly compact: 1 direct sentence or concise phrasing
+            if "\n" in translated_body:
+                # If it's a list, condense item titles into a single concise sentence
+                clean_items = []
+                for line in translated_body.split('\n'):
+                    l = line.strip()
+                    if not l:
+                        continue
+                    l = re.sub(r'^[-*•\d\.\)]\s*', '', l).strip()
+                    if ':' in l:
+                        l = l.split(':')[0].strip()
+                    clean_items.append(l)
+
+                if len(clean_items) > 1:
+                    condensed = ", ".join(clean_items[:-1]) + f", and {clean_items[-1]}"
+                    if target_language == "hi":
+                        body_brief = f"दस्तावेज़ में {condensed} शामिल हैं।"
+                    elif target_language == "hinglish":
+                        body_brief = f"Document mein {condensed} shaamil hain."
+                    else:
+                        body_brief = f"The document identifies {condensed}."
+                elif clean_items:
+                    body_brief = clean_items[0]
+                else:
+                    body_brief = translated_body
+            else:
+                first_sent = re.split(r'(?<=[.?!।])\s+', translated_body)[0].strip()
+                body_brief = first_sent or translated_body
+
+            if target_language == "hi":
+                return f"दस्तावेज़ '{top_chunk.filename}' (पृष्ठ {top_chunk.page_number}): {body_brief}"
+            elif target_language == "hinglish":
+                return f"Document '{top_chunk.filename}' (Page {top_chunk.page_number}): {body_brief}"
+            else:
+                return f"According to '{top_chunk.filename}' (Page {top_chunk.page_number}): {body_brief}"
+
+        elif style_norm in ["points", "point", "bullet", "bullets", "give me points"]:
+            # Strictly clear bullet points
+            lines = [l.strip() for l in translated_body.split('\n') if l.strip()]
+            points = []
+            for l in lines:
+                clean_l = re.sub(r'^[-*•\d\.\)]+\s*', '', l).strip()
+                if clean_l:
+                    points.append(f"- {clean_l}")
+
+            # If it wasn't a multiline list, split into sentences as bullet points
+            if len(points) <= 1:
+                sents = [s.strip() for s in re.split(r'(?<=[.?!।])\s+', translated_body) if len(s.strip()) > 5]
+                if len(sents) > 1:
+                    points = [f"- {s}" for s in sents]
+                elif sents:
+                    points = [f"- {sents[0]}"]
+                else:
+                    points = [f"- {translated_body}"]
+
+            formatted_points = "\n".join(points)
+            if target_language == "hi":
+                return f"दस्तावेज़ '{top_chunk.filename}' (पृष्ठ {top_chunk.page_number}) के मुख्य बिंदु:\n\n{formatted_points}"
+            elif target_language == "hinglish":
+                return f"Document '{top_chunk.filename}' (Page {top_chunk.page_number}) ke key points:\n\n{formatted_points}"
+            else:
+                return f"Key points from '{top_chunk.filename}' (Page {top_chunk.page_number}):\n\n{formatted_points}"
+
+        else:
+            # "explain" (default): clear, comprehensive structured explanation
+            if target_language == "hi":
+                return f"दस्तावेज़ '{top_chunk.filename}' (पृष्ठ {top_chunk.page_number}) के अनुसार:\n\n{translated_body}"
+            elif target_language == "hinglish":
+                return f"Document '{top_chunk.filename}' (Page {top_chunk.page_number}) ke mutaabiq:\n\n{translated_body}"
+            else:
+                return f"According to '{top_chunk.filename}' (Page {top_chunk.page_number}):\n\n{translated_body}"
+
+    async def generate_stream(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> AsyncGenerator[str, None]:
+        full_text = await self.generate_response(query, context_chunks, target_language, response_style=response_style)
         words = full_text.split(" ")
         for w in words:
             yield w + " "
@@ -254,10 +335,16 @@ class GeminiLLMService(BaseLLMService):
         self.model = model
         self.fallback = MockLLMService()
 
-    async def generate_response(self, query: str, context_chunks: List[Citation], target_language: str) -> str:
+    async def generate_response(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> str:
         if not self.api_key or "YOUR_GEMINI_API_KEY" in self.api_key:
-            return await self.fallback.generate_response(query, context_chunks, target_language)
-        prompt = build_user_prompt(query, context_chunks, target_language)
+            return await self.fallback.generate_response(query, context_chunks, target_language, response_style=response_style)
+        prompt = build_user_prompt(query, context_chunks, target_language, response_style=response_style)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         payload = {
             "contents": [
@@ -280,13 +367,19 @@ class GeminiLLMService(BaseLLMService):
                         if parts:
                             return parts[0].get("text", "").strip()
                 logger.warning(f"Gemini API returned status {res.status_code}. Falling back to local synthesizer.")
-                return await self.fallback.generate_response(query, context_chunks, target_language)
+                return await self.fallback.generate_response(query, context_chunks, target_language, response_style=response_style)
         except Exception as e:
             logger.warning(f"Gemini request failed ({e}). Falling back to local synthesizer.")
-            return await self.fallback.generate_response(query, context_chunks, target_language)
+            return await self.fallback.generate_response(query, context_chunks, target_language, response_style=response_style)
 
-    async def generate_stream(self, query: str, context_chunks: List[Citation], target_language: str) -> AsyncGenerator[str, None]:
-        full_text = await self.generate_response(query, context_chunks, target_language)
+    async def generate_stream(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> AsyncGenerator[str, None]:
+        full_text = await self.generate_response(query, context_chunks, target_language, response_style=response_style)
         for w in full_text.split(" "):
             yield w + " "
 
@@ -296,8 +389,14 @@ class OllamaLLMService(BaseLLMService):
         self.model = model or settings.LLM_MODEL
         self.fallback = MockLLMService()
 
-    async def generate_response(self, query: str, context_chunks: List[Citation], target_language: str) -> str:
-        prompt = build_user_prompt(query, context_chunks, target_language)
+    async def generate_response(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> str:
+        prompt = build_user_prompt(query, context_chunks, target_language, response_style=response_style)
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 res = await client.post(
@@ -315,13 +414,19 @@ class OllamaLLMService(BaseLLMService):
                     return data.get("response", "").strip()
                 else:
                     logger.warning(f"Ollama returned {res.status_code}, falling back to mock synthesizer.")
-                    return await self.fallback.generate_response(query, context_chunks, target_language)
+                    return await self.fallback.generate_response(query, context_chunks, target_language, response_style=response_style)
         except Exception as e:
             logger.warning(f"Failed to connect to Ollama at {self.base_url} ({e}). Falling back to local synthesizer.")
-            return await self.fallback.generate_response(query, context_chunks, target_language)
+            return await self.fallback.generate_response(query, context_chunks, target_language, response_style=response_style)
 
-    async def generate_stream(self, query: str, context_chunks: List[Citation], target_language: str) -> AsyncGenerator[str, None]:
-        prompt = build_user_prompt(query, context_chunks, target_language)
+    async def generate_stream(
+        self,
+        query: str,
+        context_chunks: List[Citation],
+        target_language: str,
+        response_style: str = "explain"
+    ) -> AsyncGenerator[str, None]:
+        prompt = build_user_prompt(query, context_chunks, target_language, response_style=response_style)
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
@@ -344,11 +449,11 @@ class OllamaLLMService(BaseLLMService):
                                 if data.get("done", False):
                                     break
                     else:
-                        async for token in self.fallback.generate_stream(query, context_chunks, target_language):
+                        async for token in self.fallback.generate_stream(query, context_chunks, target_language, response_style=response_style):
                             yield token
         except Exception as e:
             logger.warning(f"Ollama stream failed ({e}), falling back to local stream.")
-            async for token in self.fallback.generate_stream(query, context_chunks, target_language):
+            async for token in self.fallback.generate_stream(query, context_chunks, target_language, response_style=response_style):
                 yield token
 
 def get_llm_service() -> BaseLLMService:

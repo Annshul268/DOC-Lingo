@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Message, Language, Citation, DocumentMetadata, User as UserType } from '@/types';
+import { Message, Language, Citation, DocumentMetadata, User as UserType, ResponseStyle } from '@/types';
 import { CitationsList } from '@/components/CitationsList';
 import { LanguageSelector } from '@/components/LanguageSelector';
+import { StyleSelector } from '@/components/StyleSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Send, 
@@ -29,6 +30,8 @@ interface ChatAreaProps {
   isLoading: boolean;
   targetLanguage: Language;
   onLanguageChange: (lang: Language) => void;
+  responseStyle?: ResponseStyle;
+  onStyleChange?: (style: ResponseStyle) => void;
   selectedDocId: string | null;
   onSelectDoc: (id: string | null) => void;
   documents: DocumentMetadata[];
@@ -140,6 +143,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onOpenAuthModal,
   onUpload,
   isUploading,
+  responseStyle = 'explain',
+  onStyleChange,
   isSidebarOpen,
   onToggleSidebar,
 }) => {
@@ -349,8 +354,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         </div>
 
-        {/* Right Side: LanguageSelector, ThemeToggle, Clear Chat */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Right Side: StyleSelector, LanguageSelector, ThemeToggle, Clear Chat */}
+        <div className="flex items-center flex-wrap gap-2 shrink-0">
+          {onStyleChange && (
+            <StyleSelector value={responseStyle} onChange={onStyleChange} />
+          )}
           <LanguageSelector value={targetLanguage} onChange={onLanguageChange} />
           <ThemeToggle />
           {messages.length > 0 && (

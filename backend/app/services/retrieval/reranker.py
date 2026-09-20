@@ -264,6 +264,39 @@ class GenericRAGReranker:
                 if has_process:
                     score += 0.35
 
+            elif intent == IntentType.REASON_WHY:
+                has_causal = any(w in text_lower for w in [
+                    'because', 'due to', 'in order to', 'leads to', 'reason', 'reasons', 'causes',
+                    'purpose of', 'aims to', 'used to', 'helps to', 'helps in', 'prevent', 'prevents',
+                    'reduces', 'ensures', 'avoids', 'kyunki', 'isliye', 'karan', 'vajah', 'ताकि', 'कारण'
+                ])
+                if has_causal:
+                    score += 0.35
+
+            elif intent == IntentType.EXPLANATION:
+                has_explanation = any(re.search(r'\b' + re.escape(p) + r'\b', text_lower) for p in self.EXPLANATORY_PREDICATES)
+                if has_explanation:
+                    score += 0.30
+
+            elif intent == IntentType.SUMMARY:
+                has_summary = any(w in text_lower or w in sec_heading for w in [
+                    'summary', 'overview', 'conclusion', 'overall', 'abstract', 'takeaways', 'synopsis', 'sankshep', 'saar'
+                ])
+                if has_summary:
+                    score += 0.35
+
+            elif intent == IntentType.FACTUAL_LOOKUP:
+                if re.search(r'\b\d+\b', text) or any(w in text_lower for w in expanded_subject_words):
+                    score += 0.30
+
+            elif intent == IntentType.COMPARISON:
+                has_comp = any(w in text_lower for w in [
+                    'difference', 'differ', 'differences', 'compare', 'compared', 'whereas',
+                    'while', 'on the other hand', 'versus', 'vs', 'contrast', 'antar', 'tulna'
+                ])
+                if has_comp:
+                    score += 0.35
+
             elif intent == IntentType.ADVANTAGES:
                 if any(w in text_lower for w in ['advantage', 'advantages', 'benefit', 'benefits', 'merits', 'reduce', 'efficient', 'fayde', 'labh']):
                     score += 0.35

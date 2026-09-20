@@ -5,13 +5,17 @@ from pydantic import BaseModel
 
 class IntentType(str, Enum):
     TYPES_LIST = "types_list"          # types, categories, classification, components, list
-    DEFINITION = "definition"          # what is, define, meaning, concept
-    FUNCTION_ROLE = "function_role"    # functions, responsibilities, role, purpose, what does X do
-    PROCESS_HOW = "process_how"        # how, how does it work, mechanism, steps
+    REASON_WHY = "reason_why"          # why, reasons, causes
     ADVANTAGES = "advantages"          # advantages, benefits, pros, merits
     DISADVANTAGES = "disadvantages"    # disadvantages, limitations, drawbacks, cons
     COMPARISON = "comparison"          # compare, difference between, vs
+    FUNCTION_ROLE = "function_role"    # functions, responsibilities, role, purpose, what does X do
+    PROCESS_HOW = "process_how"        # how, how does it work, mechanism, steps
     EXAMPLES = "examples"              # examples of, instances
+    SUMMARY = "summary"                # summarize, summary, overview, synopsis
+    FACTUAL_LOOKUP = "factual_lookup"  # who, when, where, how many, how much, count
+    EXPLANATION = "explanation"        # explain, describe, elaborate
+    DEFINITION = "definition"          # what is, define, meaning, concept
     GENERAL = "general"
 
 class QueryAnalysis(BaseModel):
@@ -21,7 +25,7 @@ class QueryAnalysis(BaseModel):
     intent_keywords: Set[str]
     query_years: Set[str]
 
-# Language-agnostic intent detection keyword patterns
+# Language-agnostic intent detection keyword patterns (evaluated in precedence order)
 _INTENT_PATTERNS: Dict[IntentType, List[str]] = {
     IntentType.TYPES_LIST: [
         r'\btypes?\b', r'\bkinds?\b', r'\bcategor(?:y|ies)\b', r'\bclassifications?\b',
@@ -29,13 +33,18 @@ _INTENT_PATTERNS: Dict[IntentType, List[str]] = {
         r'\bapproaches\b', r'\bkis\s+type\b', r'\bkitne\s+types?\b', r'\btypes?\s+kya\b',
         r'\btype\s+batao\b', r'\bप्रकार\b', r'\bवर्गीकरण\b', r'\bश्रेणियां?\b', r'\bभेद\b'
     ],
+    IntentType.REASON_WHY: [
+        r'\bwhy\b', r'\breasons?\b', r'\bcauses?\b', r'\bpurpose\s+behind\b',
+        r'\bkyun\b', r'\bkyon\b', r'\bkaran\b', r'\bvajaha?\b',
+        r'\bकारण\b', r'\bवजह\b', r'\bक्यों\b'
+    ],
     IntentType.ADVANTAGES: [
         r'\badvantages?\b', r'\bbenefits?\b', r'\bmerits?\b', r'\bpros\b',
-        r'\bfayde\b', r'\bfayda\b', r'\bलाभ\b', r'\bफ़ायदे\b'
+        r'\bfayde\b', r'\bfayda\b', r'\bलाभ\b', r'\bफ़ायदे\b', r'\bफायदे\b'
     ],
     IntentType.DISADVANTAGES: [
         r'\bdisadvantages?\b', r'\blimitations?\b', r'\bdrawbacks?\b', r'\bdemerits?\b', r'\bcons\b',
-        r'\bnuksan\b', r'\bkamiyan\b', r'\bहानि\b', r'\bनुकसान\b', r'\bसीमाएं\b'
+        r'\bnuksan\b', r'\bkamiyan\b', r'\bहानि\b', r'\bनुकसान\b', r'\bसीमाएं\b', r'\bकमियां\b'
     ],
     IntentType.COMPARISON: [
         r'\bcompare\b', r'\bcomparison\b', r'\bdifference\s+between\b', r'\bdiffer\b', r'\bvs\b', r'\bversus\b',
@@ -54,6 +63,19 @@ _INTENT_PATTERNS: Dict[IntentType, List[str]] = {
         r'\bhow\s+does\b', r'\bhow\s+do\b', r'\bhow\s+is\b', r'\bhow\s+to\b',
         r'\bmechanism\b', r'\bsteps\b', r'\bworking\b', r'\bkaise\s+kaam\b',
         r'\bkaise\s+karta\b', r'\bkaise\s+hoti\b', r'\bप्रक्रिया\b', r'\bकार्यप्रणाली\b'
+    ],
+    IntentType.SUMMARY: [
+        r'\bsummar(?:y|ize)\b', r'\boverview\b', r'\bbrief\s+overview\b', r'\bsynopsis\b',
+        r'\bsankshep\b', r'\bsaar\b', r'\bसंक्षेप\b', r'\bसारांश\b'
+    ],
+    IntentType.FACTUAL_LOOKUP: [
+        r'\bwhen\b', r'\bwhere\b', r'\bwho\b', r'\bhow\s+many\b', r'\bhow\s+much\b',
+        r'\bcount\b', r'\bamount\b', r'\bheadcount\b', r'\bkitne?\b', r'\bkitni\b',
+        r'\bkab\b', r'\bkahan\b', r'\bkaun\b', r'\bकितना\b', r'\bकितने\b', r'\bकब\b', r'\bकहाँ\b', r'\bकिसने\b'
+    ],
+    IntentType.EXPLANATION: [
+        r'\bexplain\b', r'\bdescribe\b', r'\belaborate\b', r'\bdetail\b',
+        r'\bsamjhao\b', r'\bvivaran\b', r'\bविस्तार\b', r'\bवर्णन\b', r'\bसमझाएं\b'
     ],
     IntentType.DEFINITION: [
         r'\bwhat\s+is\b', r'\bwhat\s+are\b', r'\bdefine\b', r'\bdefinition\b',
@@ -102,9 +124,10 @@ def analyze_query(query: str, stopwords: Set[str] = None) -> QueryAnalysis:
         'function', 'functions', 'role', 'roles', 'responsibility', 'responsibilities',
         'advantage', 'advantages', 'benefit', 'benefits', 'disadvantage', 'disadvantages',
         'difference', 'compare', 'define', 'definition', 'meaning', 'example', 'examples',
-        'explain', 'describe', 'tell', 'show', 'give', 'list',
-        'kya', 'kaise', 'kab', 'kahan', 'kis', 'kitna', 'kitne',
-        'prakar', 'vargikaran', 'karya', 'fayde', 'nuksan', 'antar'
+        'reason', 'reasons', 'cause', 'causes', 'purpose', 'overview', 'summary', 'summarize',
+        'explain', 'describe', 'elaborate', 'tell', 'show', 'give', 'list', 'points', 'briefly',
+        'kya', 'kaise', 'kab', 'kahan', 'kis', 'kitna', 'kitne', 'kitni', 'kyun', 'kyon', 'karan',
+        'samjhao', 'prakar', 'vargikaran', 'karya', 'fayde', 'nuksan', 'antar', 'sankshep'
     }
 
     subject_words = {

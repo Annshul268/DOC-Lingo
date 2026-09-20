@@ -139,11 +139,14 @@ async def chat(request: ChatRequest, current_user: User = Depends(get_current_us
                 detail=f"Document '{request.document_id}' not found in your workspace"
             )
 
+    style_val = request.response_style.value if request.response_style else "explain"
+
     answer, citations, detected_lang, target_lang = await rag.answer_query(
         query=request.query,
         user_id=current_user.id,
         document_id=request.document_id,
-        target_language=request.target_language.value if request.target_language else "auto"
+        target_language=request.target_language.value if request.target_language else "auto",
+        response_style=style_val
     )
     return ChatResponse(
         answer=answer,
@@ -164,11 +167,14 @@ async def chat_stream(request: ChatRequest, current_user: User = Depends(get_cur
                 detail=f"Document '{request.document_id}' not found in your workspace"
             )
 
+    style_val = request.response_style.value if request.response_style else "explain"
+
     stream_gen, citations, detected_lang, target_lang = await rag.stream_query(
         query=request.query,
         user_id=current_user.id,
         document_id=request.document_id,
-        target_language=request.target_language.value if request.target_language else "auto"
+        target_language=request.target_language.value if request.target_language else "auto",
+        response_style=style_val
     )
     
     async def sse_generator():

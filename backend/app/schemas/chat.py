@@ -8,16 +8,22 @@ class LanguageChoice(str, Enum):
     HINDI = "hi"
     HINGLISH = "hinglish"
 
+class ResponseStyle(str, Enum):
+    EXPLAIN = "explain"
+    BRIEFLY = "briefly"
+    POINTS = "points"
+
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1, description="The user question in English, Hindi, or Hinglish")
     document_id: Optional[str] = Field(None, description="Optional document ID filter. None means all documents.")
     target_language: Optional[LanguageChoice] = Field(LanguageChoice.AUTO, description="Target answer language")
     language: Optional[str] = Field(None, description="Alias for target_language")
+    response_style: Optional[ResponseStyle] = Field(ResponseStyle.EXPLAIN, description="Response presentation style: explain, briefly, or points")
     conversation_id: Optional[str] = Field(None, description="Optional conversation session ID")
 
     @model_validator(mode="before")
     @classmethod
-    def resolve_language_alias(cls, values: Any) -> Any:
+    def resolve_aliases(cls, values: Any) -> Any:
         if isinstance(values, dict):
             # Normalize language or target_language
             lang = values.get("language") or values.get("target_language")
@@ -32,6 +38,25 @@ class ChatRequest(BaseModel):
                     "auto": LanguageChoice.AUTO,
                 }
                 values["target_language"] = mapping.get(lang_str, LanguageChoice.AUTO)
+
+            # Normalize response_style
+            style = values.get("response_style") or values.get("style")
+            if style:
+                style_str = str(style).lower().strip()
+                style_mapping = {
+                    "explain": ResponseStyle.EXPLAIN,
+                    "explanation": ResponseStyle.EXPLAIN,
+                    "brief": ResponseStyle.BRIEFLY,
+                    "briefly": ResponseStyle.BRIEFLY,
+                    "concise": ResponseStyle.BRIEFLY,
+                    "points": ResponseStyle.POINTS,
+                    "point": ResponseStyle.POINTS,
+                    "bullet": ResponseStyle.POINTS,
+                    "bullets": ResponseStyle.POINTS,
+                    "give me points": ResponseStyle.POINTS,
+                    "bullet points": ResponseStyle.POINTS,
+                }
+                values["response_style"] = style_mapping.get(style_str, ResponseStyle.EXPLAIN)
         return values
 
 class Citation(BaseModel):

@@ -1,4 +1,5 @@
 export type Language = 'auto' | 'en' | 'hi' | 'hinglish';
+export type ResponseStyle = 'explain' | 'briefly' | 'points';
 
 export interface User {
   id: string;
@@ -53,6 +54,7 @@ export interface ChatSession {
   updatedAt: string;
   selectedDocId: string | null;
   targetLanguage: Language;
+  responseStyle?: ResponseStyle;
   messages: Message[];
 }
 

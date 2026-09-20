@@ -8,7 +8,8 @@ class BaseLLMService(ABC):
         self,
         query: str,
         context_chunks: List[Citation],
-        target_language: str
+        target_language: str,
+        response_style: str = "explain"
     ) -> str:
         """Generate a grounded response using retrieved context chunks."""
         pass
@@ -18,7 +19,8 @@ class BaseLLMService(ABC):
         self,
         query: str,
         context_chunks: List[Citation],
-        target_language: str
+        target_language: str,
+        response_style: str = "explain"
     ) -> AsyncGenerator[str, None]:
         """Stream generated response tokens."""
         pass

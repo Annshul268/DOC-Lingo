@@ -181,7 +181,8 @@ export const api = {
   async askQuestion(
     query: string,
     documentId: string | null = null,
-    targetLanguage: Language = 'auto'
+    targetLanguage: Language = 'auto',
+    responseStyle: import('@/types').ResponseStyle = 'explain'
   ): Promise<ChatResponse> {
     const res = await authFetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
@@ -191,6 +192,7 @@ export const api = {
         document_id: documentId,
         target_language: targetLanguage,
         language: targetLanguage,
+        response_style: responseStyle,
       }),
     });
 
@@ -205,6 +207,7 @@ export const api = {
     query: string,
     documentId: string | null = null,
     targetLanguage: Language = 'auto',
+    responseStyle: import('@/types').ResponseStyle = 'explain',
     onMeta: (meta: { detected_language: string; target_language: string; citations: Citation[] }) => void,
     onToken: (token: string) => void,
     onError: (err: any) => void
@@ -218,6 +221,7 @@ export const api = {
           document_id: documentId,
           target_language: targetLanguage,
           language: targetLanguage,
+          response_style: responseStyle,
         }),
       });
 

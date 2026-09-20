@@ -63,7 +63,8 @@ export function generateSessionTitle(firstMessage: string): string {
 export function createNewSession(
   selectedDocId: string | null = null,
   targetLanguage: Language = 'auto',
-  customTitle?: string
+  customTitle?: string,
+  responseStyle: import('@/types').ResponseStyle = 'explain'
 ): ChatSession {
   const now = new Date().toISOString();
   return {
@@ -73,6 +74,7 @@ export function createNewSession(
     updatedAt: now,
     selectedDocId,
     targetLanguage,
+    responseStyle,
     messages: [],
   };
 }

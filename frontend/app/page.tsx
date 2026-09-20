@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatArea } from '@/components/ChatArea';
-import { DocumentMetadata, Message, Language, ChatSession, User } from '@/types';
+import { DocumentMetadata, Message, Language, ChatSession, User, ResponseStyle } from '@/types';
 import { api, ensureToken } from '@/lib/api';
 import { auth } from '@/lib/auth';
 import { DocumentSelectModal } from '@/components/DocumentSelectModal';
@@ -225,6 +225,17 @@ export default function Home() {
     );
   };
 
+  const handleStyleChange = (style: ResponseStyle) => {
+    if (!activeSession) return;
+    setSessions(prev =>
+      prev.map(s =>
+        s.id === activeSession.id
+          ? { ...s, responseStyle: style, updatedAt: new Date().toISOString() }
+          : s
+      )
+    );
+  };
+
   const handleClearChat = () => {
     if (!activeSession) return;
     setSessions(prev =>
@@ -271,7 +282,8 @@ export default function Home() {
       const res = await api.askQuestion(
         query,
         activeSession.selectedDocId,
-        activeSession.targetLanguage
+        activeSession.targetLanguage,
+        activeSession.responseStyle || 'explain'
       );
 
       const assistantMessage: Message = {
@@ -348,6 +360,8 @@ export default function Home() {
         isLoading={isLoading}
         targetLanguage={activeSession ? activeSession.targetLanguage : 'auto'}
         onLanguageChange={handleLanguageChange}
+        responseStyle={activeSession ? activeSession.responseStyle || 'explain' : 'explain'}
+        onStyleChange={handleStyleChange}
         selectedDocId={activeSession ? activeSession.selectedDocId : null}
         onSelectDoc={handleSelectDoc}
         documents={documents}
