@@ -87,22 +87,22 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           {docGroups.map((group, groupIdx) => (
             <div key={groupIdx} className="space-y-2">
               {/* Document Filename - Displayed ONLY ONCE per document */}
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-800 dark:text-stone-200">
+                <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
                 <span className="truncate">{group.filename}</span>
               </div>
 
               {/* List of citations under this document */}
-              <div className="space-y-3 pl-3.5 border-l-2 border-slate-200 dark:border-slate-800">
+              <div className="space-y-3 pl-3.5 border-l-2 border-amber-300/80 dark:border-amber-700/60">
                 {group.items.map((cite, citeIdx) => (
                   <div key={citeIdx} className="space-y-1">
                     {/* Page number */}
-                    <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                    <div className="text-[11px] font-semibold text-amber-900 dark:text-amber-300">
                       Page {cite.page_number}
                     </div>
 
                     {/* Excerpt text */}
-                    <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-200/70 dark:border-slate-800 whitespace-pre-wrap font-normal">
+                    <div className="text-[11px] leading-relaxed text-stone-700 dark:text-stone-300 bg-amber-50/50 dark:bg-stone-900/80 p-2.5 rounded-xl border border-amber-200/60 dark:border-stone-800 whitespace-pre-wrap font-normal">
                       &quot;{cite.text_snippet.trim()}&quot;
                     </div>
                   </div>

@@ -196,12 +196,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClick={() => onSelectSession(session.id)}
         className={`group flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all ${
           isActive
-            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 font-medium shadow-2xs border border-emerald-200/60 dark:border-emerald-800/40'
+            ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 font-medium shadow-2xs border border-amber-200/60 dark:border-amber-800/40'
             : 'hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
-          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-stone-400'}`} />
+          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-600 dark:text-amber-400' : 'text-stone-400'}`} />
           {isEditing ? (
             <div className="flex items-center gap-1 w-full" onClick={(e) => e.stopPropagation()}>
               <input
@@ -213,11 +213,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   if (e.key === 'Escape') setEditingSessionId(null);
                 }}
                 autoFocus
-                className="w-full text-xs px-1.5 py-0.5 rounded border border-emerald-500 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none"
+                className="w-full text-xs px-1.5 py-0.5 rounded border border-amber-500 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-100 focus:outline-none"
               />
               <button
                 onClick={(e) => saveRename(session.id, e)}
-                className="p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-emerald-600"
+                className="p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-amber-600"
                 title="Save"
               >
                 <Check className="w-3 h-3" />
@@ -232,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           ) : (
             <div className="min-w-0 flex-1">
-              <p className={`truncate ${isActive ? 'font-semibold text-emerald-950 dark:text-emerald-100' : 'text-stone-700 dark:text-stone-300'}`}>
+              <p className={`truncate ${isActive ? 'font-semibold text-amber-950 dark:text-amber-100' : 'text-stone-700 dark:text-stone-300'}`}>
                 {session.title}
               </p>
               <div className="flex items-center gap-1.5 text-[10px] text-stone-400 dark:text-stone-500 mt-0.5">
@@ -240,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {session.selectedDocId ? (
                   <>
                     <span>•</span>
-                    <span className="truncate max-w-[120px] text-emerald-600 dark:text-emerald-400">
+                    <span className="truncate max-w-[120px] text-amber-600 dark:text-amber-400">
                       {documents.find(d => d.document_id === session.selectedDocId)?.filename || 'Doc'}
                     </span>
                   </>
@@ -292,11 +292,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30"
       />
 
-      <aside className="fixed md:static inset-y-0 left-0 z-40 w-72 sm:w-80 border-r border-stone-200/80 dark:border-stone-800 bg-[#fbfcf9] dark:bg-stone-900 flex flex-col h-screen shrink-0 transition-colors shadow-lg md:shadow-none">
+      <aside className="fixed md:static inset-y-0 left-0 z-40 w-72 sm:w-80 border-r border-stone-200/80 dark:border-stone-800 bg-[#faf8f4] dark:bg-[#191614] flex flex-col h-screen shrink-0 transition-colors shadow-lg md:shadow-none">
         {/* Brand Header */}
-        <div className="p-3.5 border-b border-stone-200/80 dark:border-stone-800 bg-white/90 dark:bg-stone-900/90 flex items-center justify-between">
+        <div className="p-3.5 border-b border-stone-200/80 dark:border-stone-800 bg-[#fffdf9]/90 dark:bg-stone-900/90 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+            <div className="h-8 w-8 rounded-full bg-amber-400 flex items-center justify-center text-stone-950 font-bold shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
@@ -322,7 +322,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => setActiveTab('chats')}
               className={`flex items-center justify-center gap-1.5 py-1 rounded-full transition-all text-[11px] ${
                 activeTab === 'chats'
-                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-stone-900 text-amber-900 dark:text-amber-200 font-semibold shadow-xs'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
               }`}
             >
@@ -336,7 +336,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => setActiveTab('documents')}
               className={`flex items-center justify-center gap-1.5 py-1 rounded-full transition-all text-[11px] ${
                 activeTab === 'documents'
-                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs'
+                  ? 'bg-white dark:bg-stone-900 text-amber-900 dark:text-amber-200 font-semibold shadow-xs'
                   : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
               }`}
             >
@@ -356,7 +356,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-3">
               <button
                 onClick={onNewChat}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-xs transition-transform active:scale-95"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 text-xs font-semibold shadow-xs transition-transform active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>New Conversation</span>
@@ -415,8 +415,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-3.5 text-center cursor-pointer transition-all ${
                   isDragging 
-                    ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 scale-[0.99]' 
-                    : 'border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-emerald-500/80 hover:bg-emerald-50/30'
+                    ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 scale-[0.99]' 
+                    : 'border-amber-200/80 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-amber-400 hover:bg-amber-50/30'
                 }`}
               >
                 <input
@@ -429,13 +429,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 />
                 {isUploading ? (
                   <div className="flex flex-col items-center gap-1.5 py-1">
-                    <Loader2 className="w-5 h-5 text-emerald-600 animate-spin" />
+                    <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
                     <div className="text-xs font-semibold text-stone-700 dark:text-stone-200">Indexing Document...</div>
                     <div className="text-[10px] text-stone-400">Embedding vectors into ChromaDB</div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-1">
-                    <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                       <UploadCloud className="w-4 h-4" />
                     </div>
                     <p className="text-xs font-semibold text-stone-700 dark:text-stone-200">Drop PDF or DOCX here</p>
@@ -457,11 +457,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onSelectDoc(null)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
                   selectedDocId === null
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-semibold shadow-2xs border border-emerald-200 dark:border-emerald-800/60'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 font-semibold shadow-2xs border border-amber-200 dark:border-amber-800/60'
                     : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
                 }`}
               >
-                <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+                <Layers className="w-4 h-4 text-amber-600 shrink-0" />
                 <div className="text-left flex-1 min-w-0">
                   <div className="truncate">All Documents</div>
                   <div className="text-[10px] text-stone-400 font-normal">Cross-document search across library</div>
@@ -484,14 +484,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onClick={() => onSelectDoc(doc.document_id)}
                       className={`group flex items-start justify-between p-2.5 rounded-xl text-xs cursor-pointer border transition-all ${
                         isSelected
-                          ? 'border-emerald-200 dark:border-emerald-800/80 bg-white dark:bg-stone-800 shadow-2xs'
-                          : 'border-transparent hover:border-stone-200/80 dark:hover:border-stone-800 hover:bg-white dark:hover:bg-stone-800/60'
+                          ? 'border-amber-300 dark:border-amber-800/80 bg-amber-50/40 dark:bg-stone-800 shadow-2xs'
+                          : 'border-stone-200/60 dark:border-stone-800 hover:border-amber-200/80 dark:hover:border-stone-700 hover:bg-white dark:hover:bg-stone-800/60'
                       }`}
                     >
                       <div className="flex items-start gap-2 min-w-0 pr-1 flex-1">
-                        <FileText className={`w-4 h-4 mt-0.5 shrink-0 ${isSelected ? 'text-emerald-600' : 'text-stone-400'}`} />
+                        <FileText className={`w-4 h-4 mt-0.5 shrink-0 ${isSelected ? 'text-amber-600' : 'text-stone-400'}`} />
                         <div className="min-w-0 flex-1">
-                          <p className={`truncate font-medium ${isSelected ? 'text-emerald-950 dark:text-emerald-100 font-semibold' : 'text-stone-700 dark:text-stone-300'}`}>
+                          <p className={`truncate font-medium ${isSelected ? 'text-amber-950 dark:text-amber-100 font-semibold' : 'text-stone-700 dark:text-stone-300'}`}>
                             {doc.filename}
                           </p>
                           <div className="flex items-center gap-1.5 text-[10px] text-stone-400 dark:text-stone-500 mt-0.5">
@@ -505,7 +505,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="flex items-center gap-1 shrink-0 pt-0.5">
                         <button
                           onClick={(e) => handleDownload(doc, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 transition-opacity"
                           title="Download original file"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -533,7 +533,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-3 border-t border-stone-200/80 dark:border-stone-800 bg-white dark:bg-stone-900 flex flex-col gap-2">
           <div className="flex items-center justify-between text-[11px] text-stone-600 dark:text-stone-300">
             <div className="flex items-center gap-1.5 min-w-0">
-              <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0 font-bold">
+              <div className="w-5 h-5 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-800 dark:text-amber-400 shrink-0 font-bold">
                 <UserIcon className="w-3 h-3" />
               </div>
               <div className="truncate">
@@ -548,7 +548,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 setAuthError(null);
                 setIsAuthModalOpen(true);
               }}
-              className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+              className="text-[10px] font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 hover:underline shrink-0"
             >
               Switch User
             </button>
@@ -556,7 +556,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex items-center justify-between text-[10px] text-stone-400 dark:text-stone-500 pt-1 border-t border-stone-100 dark:border-stone-800/60">
             <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
               Isolated Workspace
             </span>
             <span className="font-mono">ChromaDB</span>
@@ -569,7 +569,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-sm w-full p-5 border border-stone-200 dark:border-stone-800 shadow-xl animate-in fade-in zoom-in duration-150">
               <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <h3 className="font-semibold text-sm text-stone-800 dark:text-stone-100">
                     {authMode === 'switch' && 'Switch Workspace'}
                     {authMode === 'login' && 'Log In to Account'}
@@ -602,7 +602,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     type="button"
                     disabled={isAuthSubmitting}
                     onClick={handleCreateNewGuest}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-full bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-xs font-semibold border border-amber-200 dark:border-amber-800 transition-colors"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isAuthSubmitting ? 'animate-spin' : ''}`} />
                     Create Clean Guest Workspace
@@ -645,7 +645,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onChange={(e) => setUsernameInput(e.target.value)}
                       required
                       placeholder="e.g. user_alice"
-                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
                   <div>
@@ -656,7 +656,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onChange={(e) => setPasswordInput(e.target.value)}
                       required
                       placeholder="••••••••"
-                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
                   <div className="flex items-center gap-2 pt-2">
@@ -670,7 +670,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="submit"
                       disabled={isAuthSubmitting}
-                      className="flex-1 py-2 text-xs font-semibold rounded-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 shadow-xs"
+                      className="flex-1 py-2 text-xs font-semibold rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 disabled:opacity-50 shadow-xs"
                     >
                       {isAuthSubmitting ? 'Logging in...' : 'Log In'}
                     </button>
@@ -688,7 +688,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onChange={(e) => setUsernameInput(e.target.value)}
                       required
                       placeholder="e.g. user_bob"
-                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
                   <div>
@@ -699,7 +699,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onChange={(e) => setPasswordInput(e.target.value)}
                       required
                       placeholder="Min. 4 characters"
-                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                      className="w-full text-xs px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
                   <div className="flex items-center gap-2 pt-2">
@@ -713,7 +713,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       type="submit"
                       disabled={isAuthSubmitting}
-                      className="flex-1 py-2 text-xs font-semibold rounded-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 shadow-xs"
+                      className="flex-1 py-2 text-xs font-semibold rounded-full bg-amber-400 hover:bg-amber-500 text-stone-950 disabled:opacity-50 shadow-xs"
                     >
                       {isAuthSubmitting ? 'Registering...' : 'Register'}
                     </button>

@@ -280,7 +280,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#fcfdfa] dark:bg-stone-950 transition-colors">
+    <div className="flex h-screen overflow-hidden bg-[#fffdf9] dark:bg-[#141210] transition-colors">
       <Sidebar
         documents={documents}
         selectedDocId={activeSession ? activeSession.selectedDocId : null}
