@@ -343,12 +343,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 onClick={() => heroFileInputRef.current?.click()}
                 disabled={isUploading}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-dashed border-amber-300 dark:border-stone-700 hover:border-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-950/30 text-stone-700 dark:text-stone-300 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-dashed border-stone-300 dark:border-stone-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 text-stone-600 dark:text-stone-300 transition-colors"
               >
                 {isUploading ? (
-                  <Loader2 className="w-3 h-3 text-amber-600 animate-spin" />
+                  <Loader2 className="w-3 h-3 text-emerald-600 animate-spin" />
                 ) : (
-                  <UploadCloud className="w-3 h-3 text-amber-600" />
+                  <UploadCloud className="w-3 h-3 text-emerald-600" />
                 )}
                 <span>{isUploading ? 'Indexing Document...' : 'Upload PDF / DOCX'}</span>
               </button>
@@ -356,33 +356,33 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setIsContextDropdownOpen(!isContextDropdownOpen)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-200/90 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 hover:bg-amber-50/40 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-stone-200 dark:border-stone-800 bg-white/80 dark:bg-stone-900/80 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 transition-colors"
                 >
                   <span className="text-stone-400">Context:</span>
-                  <span className="font-medium text-amber-800 dark:text-amber-300 max-w-[140px] truncate">
+                  <span className="font-medium text-emerald-700 dark:text-emerald-400 max-w-[140px] truncate">
                     {selectedDoc ? selectedDoc.filename : `All Documents (${documents.length})`}
                   </span>
                   <ChevronDown className="w-3 h-3 text-stone-400" />
                 </button>
 
                 {isContextDropdownOpen && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-white dark:bg-stone-900 border border-amber-200 dark:border-stone-800 rounded-2xl shadow-lg z-50 p-1.5 space-y-1 text-left">
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl shadow-lg z-50 p-1.5 space-y-1 text-left">
                     <button
                       onClick={() => {
                         onSelectDoc(null);
                         setIsContextDropdownOpen(false);
                       }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors ${
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                         selectedDocId === null
-                          ? 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
-                          : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50/60 dark:hover:bg-stone-800'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold'
+                          : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <Layers className="w-3.5 h-3.5 text-amber-500" />
+                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
                         <span>All Documents</span>
                       </div>
-                      {selectedDocId === null && <Check className="w-3 h-3 text-amber-600" />}
+                      {selectedDocId === null && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                     </button>
 
                     {documents.map((doc) => {
@@ -394,17 +394,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                             onSelectDoc(doc.document_id);
                             setIsContextDropdownOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-colors ${
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                             isSelected
-                              ? 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold'
-                              : 'text-stone-700 dark:text-stone-300 hover:bg-amber-50/60 dark:hover:bg-stone-800'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold'
+                              : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 pr-2">
-                            <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-500' : 'text-stone-400'}`} />
+                            <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-600' : 'text-stone-400'}`} />
                             <span className="truncate">{doc.filename}</span>
                           </div>
-                          {isSelected && <Check className="w-3 h-3 text-amber-600 shrink-0" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
                         </button>
                       );
                     })}
