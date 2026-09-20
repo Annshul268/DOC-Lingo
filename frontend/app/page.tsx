@@ -361,7 +361,6 @@ export default function Home() {
         isUploading={isUploading}
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={handleToggleSidebar}
-        onNewChat={handleNewChat}
       />
       <DocumentSelectModal
         isOpen={isDocSelectModalOpen}

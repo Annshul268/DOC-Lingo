@@ -40,7 +40,6 @@ interface ChatAreaProps {
   isUploading?: boolean;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
-  onNewChat?: () => void;
 }
 
 // Friendly AI Robot & Foliage Mascot matching the warm golden amber & ivory theme
@@ -143,7 +142,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isUploading,
   isSidebarOpen,
   onToggleSidebar,
-  onNewChat,
 }) => {
   const [input, setInput] = useState('');
   const [isContextDropdownOpen, setIsContextDropdownOpen] = useState(false);
