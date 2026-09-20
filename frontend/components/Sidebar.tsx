@@ -79,25 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleDownload = async (doc: DocumentMetadata, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      let baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
-      if (!baseUrl.endsWith('/api')) {
-        baseUrl = `${baseUrl}/api`;
-      }
-      const token = auth.getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch(`${baseUrl}/documents/${doc.document_id}/download`, { headers });
-      if (!res.ok) throw new Error('Download failed or file not found');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      await api.downloadDocument(doc.document_id, doc.filename);
     } catch (err: any) {
       alert(`Download error: ${err.message}`);
     }

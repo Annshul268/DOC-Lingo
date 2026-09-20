@@ -11,14 +11,58 @@ const getBaseUrl = (): string => {
 
 const API_BASE_URL = getBaseUrl();
 
-const getAuthHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+let guestSessionPromise: Promise<string | null> | null = null;
+
+export const ensureToken = async (): Promise<string | null> => {
+  let token = auth.getToken();
+  if (token) return token;
+
+  if (!guestSessionPromise) {
+    guestSessionPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: null }),
+        });
+        if (!res.ok) return null;
+        const data: AuthResponse = await res.json();
+        auth.saveAuth(data);
+        return data.access_token;
+      } catch (e) {
+        console.error('Failed to auto-create guest session:', e);
+        return null;
+      } finally {
+        guestSessionPromise = null;
+      }
+    })();
+  }
+  return guestSessionPromise;
+};
+
+const getAuthHeaders = async (extra: Record<string, string> = {}): Promise<Record<string, string>> => {
   const headers: Record<string, string> = { ...extra };
-  const token = auth.getToken();
+  const token = await ensureToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 };
+
+async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const customHeaders = (init.headers as Record<string, string>) || {};
+  let headers = await getAuthHeaders(customHeaders);
+  let res = await fetch(url, { ...init, headers });
+
+  // Self-heal on 401 (e.g. token expired, cleared on server, or invalid)
+  if (res.status === 401) {
+    auth.clearAuth();
+    headers = await getAuthHeaders(customHeaders);
+    res = await fetch(url, { ...init, headers });
+  }
+
+  return res;
+}
 
 export interface ChatResponse {
   answer: string;
@@ -84,9 +128,7 @@ export const api = {
   },
 
   async getMe(): Promise<User> {
-    const res = await fetch(`${API_BASE_URL}/auth/me`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await authFetch(`${API_BASE_URL}/auth/me`);
     if (!res.ok) throw new Error('Failed to get user profile');
     return res.json();
   },
@@ -96,13 +138,8 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const headers = getAuthHeaders();
-    // Do NOT set Content-Type header manually for FormData so browser computes boundary
-    delete headers['Content-Type'];
-
-    const res = await fetch(`${API_BASE_URL}/documents/upload`, {
+    const res = await authFetch(`${API_BASE_URL}/documents/upload`, {
       method: 'POST',
-      headers,
       body: formData,
     });
 
@@ -114,19 +151,30 @@ export const api = {
   },
 
   async getDocuments(): Promise<{ documents: DocumentMetadata[]; total: number }> {
-    const res = await fetch(`${API_BASE_URL}/documents`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await authFetch(`${API_BASE_URL}/documents`);
     if (!res.ok) throw new Error('Failed to fetch documents');
     return res.json();
   },
 
   async deleteDocument(documentId: string): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+    const res = await authFetch(`${API_BASE_URL}/documents/${documentId}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to delete document');
+  },
+
+  async downloadDocument(documentId: string, filename: string): Promise<void> {
+    const res = await authFetch(`${API_BASE_URL}/documents/${documentId}/download`);
+    if (!res.ok) throw new Error('Download failed or file not found');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   },
 
   // --- Chat ---
@@ -135,9 +183,9 @@ export const api = {
     documentId: string | null = null,
     targetLanguage: Language = 'auto'
   ): Promise<ChatResponse> {
-    const res = await fetch(`${API_BASE_URL}/chat`, {
+    const res = await authFetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
         document_id: documentId,
@@ -162,9 +210,9 @@ export const api = {
     onError: (err: any) => void
   ) {
     try {
-      const res = await fetch(`${API_BASE_URL}/chat/stream`, {
+      const res = await authFetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
-        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
           document_id: documentId,

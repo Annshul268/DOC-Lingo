@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatArea } from '@/components/ChatArea';
 import { DocumentMetadata, Message, Language, ChatSession, User } from '@/types';
-import { api } from '@/lib/api';
+import { api, ensureToken } from '@/lib/api';
 import { auth } from '@/lib/auth';
 import { 
   loadSessions, 
@@ -27,18 +27,8 @@ export default function Home() {
   // Initialize or restore active user on mount
   useEffect(() => {
     async function initUserAndWorkspace() {
-      let user = auth.getUser();
-      const token = auth.getToken();
-
-      if (!user || !token) {
-        try {
-          const authData = await api.createGuestSession();
-          user = authData.user;
-        } catch (err) {
-          console.error('Failed to create initial guest session:', err);
-        }
-      }
-
+      await ensureToken();
+      const user = auth.getUser();
       setCurrentUser(user);
 
       if (user) {
