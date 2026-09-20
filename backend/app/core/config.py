@@ -45,9 +45,12 @@ class Settings(BaseSettings):
         return v
     
     # RAG parameters
-    CHUNK_SIZE: int = 500
-    CHUNK_OVERLAP: int = 50
+    CHUNK_SIZE: int = 900
+    CHUNK_OVERLAP: int = 120
     TOP_K: int = 4
+    RETRIEVAL_K: int = 16
+    RERANK_K: int = 8
+    FINAL_CONTEXT_K: int = 4
     SIMILARITY_THRESHOLD: float = 0.35
     
     # Storage

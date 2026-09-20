@@ -23,6 +23,7 @@ Strict Grounding & Answer Rules:
    - "hi": Clear, concise Hindi written in Devanagari script (हिन्दी).
    - "hinglish": Natural, colloquial Roman-script Hinglish (e.g., "Round Robin scheduling mein har ready process ko ek fixed time quantum assign kiya jata hai."). Preserve English technical terms in English. Never write Devanagari script for Hinglish. Never perform phonetic character-by-character transliteration.
 12. Never invent citations or page numbers.
+13. When the user asks for types, categories, classifications, functions, or a list, provide all items and their explanations supported by the retrieved context. Do not stop at just one item or substitute a generic definition.
 """
 
 def build_context_block(citations: List[Citation]) -> str:

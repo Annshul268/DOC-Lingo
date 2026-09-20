@@ -41,6 +41,7 @@ class Citation(BaseModel):
     chunk_index: int
     text_snippet: str
     similarity_score: float
+    section_heading: Optional[str] = None
 
 class ChatResponse(BaseModel):
     answer: str

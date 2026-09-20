@@ -10,6 +10,7 @@ class DocumentChunk(BaseModel):
     chunk_index: int
     text: str
     language: Optional[str] = "en"
+    section_heading: Optional[str] = None
 
 class DocumentMetadata(BaseModel):
     document_id: str

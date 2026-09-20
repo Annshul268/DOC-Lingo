@@ -267,25 +267,32 @@ class RAGService:
         # 3. Embed query using multilingual embedding
         query_vector = self.embedding_service.embed_query(query)
 
-        # 4. Search candidate pool in ChromaDB with wider window
-        candidate_k = max(16, settings.TOP_K * 4)
+        # 4. Search candidate pool in ChromaDB with configured RETRIEVAL_K
+        candidate_k = getattr(settings, "RETRIEVAL_K", 16)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
             document_id=document_id
         )
 
-        # 5. Enrich candidates with neighboring context if needed
-        enriched_candidates = self._enrich_candidates_with_context(candidates)
+        logger.info(f"=== RAG QUERY: '{query}' [Lang: {detected_lang} -> {final_lang}] ===")
+        logger.info(f"Retrieved {len(candidates)} candidate chunks from ChromaDB (pool size {candidate_k})")
+        for idx, c in enumerate(candidates[:6], 1):
+            logger.debug(f"  Candidate {idx}: P{c.page_number} C{c.chunk_index} [Score: {c.similarity_score:.4f}] Sec: {c.section_heading} | Text: {repr(c.text_snippet[:80])}")
 
-        # 6. Rerank candidates using multi-stage adaptive scoring
+        # 5. Rerank candidates using intent-aware multi-factor scoring
+        final_k = getattr(settings, "FINAL_CONTEXT_K", settings.TOP_K)
         relevant_citations = self.reranker.rerank(
             query=query,
-            citations=enriched_candidates,
-            top_k=settings.TOP_K
+            citations=candidates,
+            top_k=final_k
         )
 
-        # 7. LLM Grounded Generation
+        logger.info(f"Selected {len(relevant_citations)} final evidence chunks after reranking (target max {final_k}):")
+        for idx, c in enumerate(relevant_citations, 1):
+            logger.info(f"  Selected {idx}: P{c.page_number} C{c.chunk_index} [Score: {c.similarity_score:.4f}] Sec: {c.section_heading} | Text: {repr(c.text_snippet[:100])}")
+
+        # 6. LLM Grounded Generation
         answer = await self.llm_service.generate_response(
             query=query,
             context_chunks=relevant_citations,
@@ -315,19 +322,18 @@ class RAGService:
             final_lang = "en"
 
         query_vector = self.embedding_service.embed_query(query)
-        candidate_k = max(16, settings.TOP_K * 4)
+        candidate_k = getattr(settings, "RETRIEVAL_K", 16)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
             document_id=document_id
         )
 
-        enriched_candidates = self._enrich_candidates_with_context(candidates)
-
+        final_k = getattr(settings, "FINAL_CONTEXT_K", settings.TOP_K)
         relevant_citations = self.reranker.rerank(
             query=query,
-            citations=enriched_candidates,
-            top_k=settings.TOP_K
+            citations=candidates,
+            top_k=final_k
         )
 
         stream_gen = self.llm_service.generate_stream(

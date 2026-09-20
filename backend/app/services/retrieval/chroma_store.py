@@ -32,7 +32,8 @@ class ChromaVectorStore(BaseVectorStore):
                 "filename": chunk.filename,
                 "page_number": chunk.page_number,
                 "chunk_index": chunk.chunk_index,
-                "language": chunk.language or "en"
+                "language": chunk.language or "en",
+                "section_heading": chunk.section_heading or ""
             }
             for chunk in chunks
         ]
@@ -128,7 +129,8 @@ class ChromaVectorStore(BaseVectorStore):
                     page_number=int(meta.get("page_number", 1)),
                     chunk_index=int(meta.get("chunk_index", 0)),
                     text_snippet=text,
-                    similarity_score=round(float(similarity), 4)
+                    similarity_score=round(float(similarity), 4),
+                    section_heading=meta.get("section_heading") or None
                 )
             )
             
@@ -161,7 +163,8 @@ class ChromaVectorStore(BaseVectorStore):
                     page_number=int(meta["page_number"]),
                     chunk_index=int(meta["chunk_index"]),
                     text_snippet=text,
-                    similarity_score=1.0
+                    similarity_score=1.0,
+                    section_heading=meta.get("section_heading") or None
                 )
         except Exception as e:
             logger.debug(f"Could not retrieve chunk {chunk_index} for document {document_id}: {e}")

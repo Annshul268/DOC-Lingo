@@ -100,7 +100,44 @@ class MockLLMService(BaseLLMService):
                 for syn in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS.get(roman, []):
                     expanded_query_words.add(syn.lower())
 
-        is_def_query = any(p in query.lower() for p in ['what is', 'kya hota', 'kya hai', 'kya h', 'define', 'meaning of'])
+        # Check if query intent is types/list or functions
+        from backend.app.services.retrieval.query_intent import analyze_query, IntentType
+        analysis = analyze_query(query, stopwords=GenericRAGReranker.STOPWORDS)
+
+        if analysis.intent == IntentType.TYPES_LIST:
+            lines = [l.strip() for l in normalized_snippet.split('\n') if l.strip()]
+            list_items = []
+            for l in lines:
+                if l.endswith('?') or 'test document' in l.lower() or 'page ' in l.lower():
+                    continue
+                if re.search(r'(?i)\b(?:types?|kinds?|categories|classification)\s+of\b', l):
+                    continue
+                if re.match(r'^(?:[-*•]|\d+[\.\)]|[A-Z][a-zA-Z\s\-]{2,35}:)\s+', l):
+                    list_items.append(l)
+                elif list_items and len(l) > 15 and not re.match(r'^[A-Z][a-zA-Z\s]{2,30}$', l):
+                    list_items[-1] += ' ' + l
+
+            if list_items:
+                formatted_items = "\n".join(f"- {it}" if not it.startswith(('-', '*', '•')) else it for it in list_items)
+                return formatted_items, True
+
+        if analysis.intent == IntentType.FUNCTION_ROLE:
+            lines = [l.strip() for l in normalized_snippet.split('\n') if l.strip()]
+            role_items = []
+            for l in lines:
+                if l.endswith('?') or 'test document' in l.lower() or 'page ' in l.lower():
+                    continue
+                if re.search(r'(?i)\b(?:major\s+responsibilities|functions|core\s+functions)\b', l):
+                    continue
+                if re.match(r'^(?:[-*•]|\d+[\.\)]|[A-Z][a-zA-Z\s\-]{2,35}:)\s+', l):
+                    role_items.append(l)
+                elif role_items and len(l) > 15 and not re.match(r'^[A-Z][a-zA-Z\s]{2,30}$', l):
+                    role_items[-1] += ' ' + l
+            if len(role_items) >= 2:
+                formatted_roles = "\n".join(f"- {it}" if not it.startswith(('-', '*', '•')) else it for it in role_items)
+                return formatted_roles, True
+
+        is_def_query = (analysis.intent == IntentType.DEFINITION) or any(p in query.lower() for p in ['what is', 'kya hota', 'kya hai', 'kya h', 'define', 'meaning of'])
 
         scored_sentences = []
         for idx, s in enumerate(factual_sentences):
@@ -172,12 +209,23 @@ class MockLLMService(BaseLLMService):
 
         top_chunk = None
         concise_fact = None
+        candidate_facts = []
+        is_quant = any(w in query.lower() for w in ['kitne', 'kitna', 'kitni', 'how many', 'how much', 'count', 'amount'])
+
         for c in context_chunks:
             fact, has_match = self._extract_concise_fact(query, c.text_snippet.strip())
             if has_match and fact:
-                top_chunk = c
-                concise_fact = fact
-                break
+                candidate_facts.append((c, fact))
+
+        if candidate_facts:
+            if is_quant:
+                num_facts = [cf for cf in candidate_facts if re.search(r'\b\d+\b', cf[1])]
+                if num_facts:
+                    top_chunk, concise_fact = num_facts[0]
+                else:
+                    top_chunk, concise_fact = candidate_facts[0]
+            else:
+                top_chunk, concise_fact = candidate_facts[0]
 
         if not top_chunk or not concise_fact:
             return self._no_context_message(query, target_language)
