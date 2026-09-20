@@ -37,12 +37,16 @@ class MockLLMService(BaseLLMService):
         Generically extracts the most relevant factual sentence from a chunk for factual questions.
         Returns (concise_text, has_factual_match)
         """
+        from backend.app.services.retrieval.reranker import GenericRAGReranker
+        from backend.app.services.language.translator import devanagari_to_roman
+
         query_years = set(re.findall(r'\b(19\d\d|20\d\d)\b', query))
-        query_words = set(re.findall(r'[a-zA-Z0-9\u0900-\u097F]+', query.lower())) - {
-            'what', 'was', 'is', 'are', 'were', 'the', 'in', 'on', 'at', 'of', 'for', 'to',
-            'a', 'an', 'and', 'or', 'how', 'many', 'much', 'did', 'does', 'do', 'which',
-            'kya', 'hai', 'hain', 'tha', 'thi', 'the', 'ka', 'ki', 'ke', 'ko', 'me', 'mein',
-            'se', 'par', 'aur', 'ya', 'kitna', 'kitne', 'kitni', 'kab', 'tak', 'this', 'that'
+        raw_words = re.findall(r'[a-zA-Z0-9\u0900-\u097F]+', query.lower())
+        query_words = {
+            w for w in raw_words 
+            if (len(w) > 2 or w in GenericRAGReranker.COMMON_ACRONYMS)
+            and w not in GenericRAGReranker.STOPWORDS 
+            and w not in query_years
         }
 
         # Normalize currency font artifacts (e.g. 'I84 crore' -> '₹84 crore')
@@ -76,10 +80,6 @@ class MockLLMService(BaseLLMService):
         if not factual_sentences:
             return None, False
 
-        # Exclude common query stop words and generic words from sentence matching
-        from backend.app.services.retrieval.reranker import GenericRAGReranker
-        from backend.app.services.language.translator import devanagari_to_roman
-
         content_query_words = {
             w for w in query_words 
             if (len(w) > 2 or w in GenericRAGReranker.COMMON_ACRONYMS)
@@ -100,6 +100,8 @@ class MockLLMService(BaseLLMService):
                 for syn in GenericRAGReranker.CROSS_LINGUAL_SYNONYMS.get(roman, []):
                     expanded_query_words.add(syn.lower())
 
+        is_def_query = any(p in query.lower() for p in ['what is', 'kya hota', 'kya hai', 'kya h', 'define', 'meaning of'])
+
         scored_sentences = []
         for idx, s in enumerate(factual_sentences):
             s_lower = s.lower()
@@ -119,6 +121,8 @@ class MockLLMService(BaseLLMService):
             is_list = any(re.search(r'\b' + re.escape(m) + r'\b', s_lower) for m in GenericRAGReranker.LIST_MARKERS)
 
             if has_pred:
+                score += 2.0
+            if is_def_query and re.search(r'\b(is|are|defined|acts as|refers to)\b', s_lower):
                 score += 2.0
             if is_list and not has_pred:
                 score -= 2.5
@@ -166,11 +170,16 @@ class MockLLMService(BaseLLMService):
         if not context_chunks:
             return self._no_context_message(query, target_language)
 
-        top_chunk = context_chunks[0]
-        snippet = top_chunk.text_snippet.strip()
-        
-        concise_fact, has_match = self._extract_concise_fact(query, snippet)
-        if not has_match or not concise_fact:
+        top_chunk = None
+        concise_fact = None
+        for c in context_chunks:
+            fact, has_match = self._extract_concise_fact(query, c.text_snippet.strip())
+            if has_match and fact:
+                top_chunk = c
+                concise_fact = fact
+                break
+
+        if not top_chunk or not concise_fact:
             return self._no_context_message(query, target_language)
 
         translated_body = translate_text(concise_fact, target_language)

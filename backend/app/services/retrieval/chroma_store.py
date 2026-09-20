@@ -66,24 +66,35 @@ class ChromaVectorStore(BaseVectorStore):
             include=["documents", "metadatas", "distances"]
         )
         
+        # Resilient fallback: if document_id was provided but returned 0 results (e.g. ID desync),
+        # query without filter so available documents can still answer the question
+        if document_id and (not results or not results.get("ids") or not results["ids"][0]):
+            logger.warning(f"No chunks found with filter document_id='{document_id}', querying across available documents.")
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                include=["documents", "metadatas", "distances"]
+            )
+
         citations: List[Citation] = []
         if not results or not results.get("ids") or not results["ids"][0]:
             return citations
             
         for i in range(len(results["ids"][0])):
-            doc_id_match = results["ids"][0][i]
-            meta = results["metadatas"][0][i]
-            text = results["documents"][0][i]
-            distance = results["distances"][0][i] if "distances" in results else 0.0
+            meta = results["metadatas"][0][i] if (results.get("metadatas") and results["metadatas"][0]) else None
+            if not meta:
+                continue
+            text = results["documents"][0][i] if (results.get("documents") and results["documents"][0]) else ""
+            distance = results["distances"][0][i] if (results.get("distances") and results["distances"][0]) else 0.0
             # For cosine distance in chromadb, similarity = 1 - distance
             similarity = max(0.0, 1.0 - distance)
             
             citations.append(
                 Citation(
-                    document_id=meta["document_id"],
-                    filename=meta["filename"],
-                    page_number=int(meta["page_number"]),
-                    chunk_index=int(meta["chunk_index"]),
+                    document_id=meta.get("document_id", ""),
+                    filename=meta.get("filename", ""),
+                    page_number=int(meta.get("page_number", 1)),
+                    chunk_index=int(meta.get("chunk_index", 0)),
                     text_snippet=text,
                     similarity_score=round(float(similarity), 4)
                 )

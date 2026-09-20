@@ -21,7 +21,7 @@ class GenericRAGReranker:
         'a', 'an', 'and', 'or', 'how', 'many', 'much', 'did', 'does', 'do', 'which',
         'who', 'whom', 'where', 'when', 'why', 'about', 'from', 'with', 'by', 'its',
         'has', 'have', 'had', 'been', 'will', 'would', 'could', 'should',
-        'kya', 'hai', 'hain', 'tha', 'thi', 'the', 'ka', 'ki', 'ke', 'ko', 'me', 'mein',
+        'kya', 'hai', 'hain', 'ha', 'h', 'tha', 'thi', 'the', 'ka', 'ki', 'ke', 'ko', 'me', 'mein',
         'se', 'par', 'aur', 'ya', 'kitna', 'kitne', 'kitni', 'kab', 'kahan', 'kaise',
         'tak', 'ek', 'bhi', 'kisi', 'kisko', 'iska', 'iski', 'iske',
         'karta', 'karti', 'karte', 'kare', 'karna', 'karke', 'hota', 'hoti', 'hote',
@@ -132,9 +132,9 @@ class GenericRAGReranker:
                     score += 3.0
             if re.search(r'\b\d+\b', p):
                 score += 0.5
-            # Penalize question lines
-            if p.strip().endswith('?') or p.count('?') > 1:
-                score -= 4.0
+            # Penalize question lines heavily - evidence must be declarative facts
+            if p.strip().endswith('?') or '?' in p:
+                score -= 15.0
 
             # Predicate vs bare heading scoring
             has_pred = any(re.search(r'\b' + re.escape(pred) + r'\b', p_lower) for pred in self.EXPLANATORY_PREDICATES)
@@ -201,10 +201,10 @@ class GenericRAGReranker:
                         phrase_patterns.append(f"{s1} {s2}")
         phrase_set = set(phrase_patterns)
 
-        # Check if query is explanatory/functional ("what does X do", "how does X work", "kaise kaam karta hai")
+        # Check if query is explanatory/functional ("what does X do", "what is X", "how does X work", "kaise kaam karta hai", "kya hota hai")
         is_explanatory_query = any(q_word in query.lower() for q_word in [
-            'what does', 'what do', 'how does', 'how do', 'explain', 'kaise', 'kya karta',
-            'kya karti', 'kya karte', 'role', 'function', 'purpose', 'work', 'works'
+            'what does', 'what do', 'what is', 'what are', 'how does', 'how do', 'explain', 'kaise',
+            'kya karta', 'kya karti', 'kya karte', 'kya hota', 'kya h', 'role', 'function', 'purpose', 'work', 'works'
         ])
 
         scored_citations = []
@@ -216,12 +216,23 @@ class GenericRAGReranker:
             score = float(c.similarity_score)
 
             # --- Signal 1: Question vs. Factual Evidence Analysis ---
-            q_marks = text.count('?')
-            sentences = [s.strip() for s in re.split(r'[.?!।\n]+', text) if s.strip()]
-            num_sentences = max(1, len(sentences))
+            # Clean inline font artifacts (e.g. unmapped bullet/em-dash glyphs extracted as '?')
+            text_cleaned = re.sub(r'(?<=\w)\s+[?•—–-]\s+(?=\w)', ' - ', text)
+            text_cleaned = re.sub(r'[ \t]+\?[ \t]*$', '', text_cleaned, flags=re.MULTILINE)
+            has_pred = any(re.search(r'\b' + re.escape(pred) + r'\b', text_lower) for pred in self.EXPLANATORY_PREDICATES)
 
-            # If the chunk is primarily questions or an exercise/sample question list, it cannot be supporting evidence
-            if q_marks > 0 and (q_marks / num_sentences >= 0.35 or text.strip().endswith('?')):
+            # If the chunk consists of sample/exercise questions without declarative facts, skip it
+            lines = [l.strip() for l in text_cleaned.split('\n') if l.strip()]
+            q_lines = [l for l in lines if '?' in l]
+            fact_lines = [l for l in lines if '?' not in l and len(l) > 30 and not 'page ' in l.lower()]
+            if len(q_lines) >= 2 and len(fact_lines) == 0:
+                continue
+
+            interrogatives = re.findall(r'(?i)\b(?:what|how|why|when|where|which|who|kya|kaise|kitna|kab|kahan|kis)\b[^.?!।\n]*\?', text_cleaned)
+            # If the chunk consists of sample/exercise questions without explanatory predicates, skip it
+            if (len(interrogatives) >= 2 or text_cleaned.count('?') >= 2) and not has_pred:
+                continue
+            if text_cleaned.strip().endswith('?') and len(text_cleaned) < 150 and not has_pred:
                 continue
 
             if re.search(r'\b\d+\b', text):
@@ -274,11 +285,13 @@ class GenericRAGReranker:
 
             # Extract the focused supporting excerpt
             focused_snippet = self._extract_focused_excerpt(text, content_query_words, query_years)
+            if focused_snippet.strip().endswith('?'):
+                continue
             is_interrogative = bool(re.search(
-                r'(?i)\b(?:what|how|why|when|where|which|who|kya|kaise|kitna|kab|kahan|kis)\b.*\?$',
+                r'(?i)\b(?:what|how|why|when|where|which|who|kya|kaise|kitna|kab|kahan|kis)\b.*\?',
                 focused_snippet.strip()
             ))
-            if is_interrogative and len(focused_snippet) < 180:
+            if is_interrogative and len(focused_snippet) < 180 and not has_pred:
                 continue
 
             # Bound score to [0.0, 1.0] for clean reporting

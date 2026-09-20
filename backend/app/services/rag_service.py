@@ -27,6 +27,91 @@ class RAGService:
         self.llm_service = get_llm_service()
         self.registry_file = os.path.join(settings.BASE_DIR, "data", "documents_registry.json")
         self.documents_metadata = self._load_persisted_metadata()
+        self._reconcile_with_vector_store()
+
+    def _reconcile_with_vector_store(self) -> None:
+        """
+        Reconciles in-memory and persisted metadata with the underlying ChromaDB vector store.
+        Ensures document IDs, chunk counts, and page counts always match indexed vectors.
+        """
+        try:
+            chroma_data = self.vector_store.collection.get(include=["metadatas"])
+            if not chroma_data or not chroma_data.get("metadatas"):
+                return
+
+            chroma_docs = {}
+            for m in chroma_data["metadatas"]:
+                did = m.get("document_id")
+                fname = m.get("filename")
+                pnum = m.get("page_number", 1)
+                lang = m.get("language", "en")
+                if not did or not fname:
+                    continue
+                if did not in chroma_docs:
+                    chroma_docs[did] = {
+                        "filename": fname,
+                        "pages": set(),
+                        "chunk_count": 0,
+                        "language": lang
+                    }
+                chroma_docs[did]["pages"].add(pnum)
+                chroma_docs[did]["chunk_count"] += 1
+
+            existing_by_fname = {meta.filename: meta for meta in self.documents_metadata.values()}
+            changed = False
+
+            for did, info in chroma_docs.items():
+                fname = info["filename"]
+                if did in self.documents_metadata:
+                    meta = self.documents_metadata[did]
+                    if meta.chunk_count != info["chunk_count"]:
+                        meta.chunk_count = info["chunk_count"]
+                        changed = True
+                elif fname in existing_by_fname:
+                    old_meta = existing_by_fname[fname]
+                    if old_meta.document_id in self.documents_metadata:
+                        del self.documents_metadata[old_meta.document_id]
+                    new_meta = DocumentMetadata(
+                        document_id=did,
+                        filename=fname,
+                        file_type=old_meta.file_type,
+                        file_size_bytes=old_meta.file_size_bytes,
+                        page_count=max(old_meta.page_count, len(info["pages"])),
+                        chunk_count=info["chunk_count"],
+                        uploaded_at=old_meta.uploaded_at,
+                        status="indexed",
+                        language=info["language"]
+                    )
+                    self.documents_metadata[did] = new_meta
+                    changed = True
+                else:
+                    ext = os.path.splitext(fname)[1].lower().replace(".", "").upper()
+                    file_path = os.path.join(settings.UPLOAD_DIR, fname)
+                    fsize = os.path.getsize(file_path) if os.path.exists(file_path) else 1024
+                    new_meta = DocumentMetadata(
+                        document_id=did,
+                        filename=fname,
+                        file_type=ext or "PDF",
+                        file_size_bytes=fsize,
+                        page_count=len(info["pages"]) or 1,
+                        chunk_count=info["chunk_count"],
+                        uploaded_at=datetime.utcnow(),
+                        status="indexed",
+                        language=info["language"]
+                    )
+                    self.documents_metadata[did] = new_meta
+                    changed = True
+
+            for did in list(self.documents_metadata.keys()):
+                if did not in chroma_docs:
+                    del self.documents_metadata[did]
+                    changed = True
+
+            if changed:
+                self._save_persisted_metadata()
+                logger.info(f"Reconciled documents registry with ChromaDB: {list(self.documents_metadata.keys())}")
+        except Exception as e:
+            logger.warning(f"Error during vector store metadata reconciliation: {e}")
 
     def _load_persisted_metadata(self) -> dict:
         if os.path.exists(self.registry_file):
@@ -59,6 +144,12 @@ class RAGService:
         return cls._instance
 
     def process_file(self, file_path: str, original_filename: str) -> DocumentMetadata:
+        # If a document with the same filename already exists, remove its old chunks from vector store
+        for old_id, old_meta in list(self.documents_metadata.items()):
+            if old_meta.filename == original_filename:
+                self.vector_store.delete_document(old_id)
+                del self.documents_metadata[old_id]
+
         doc_id = str(uuid.uuid4())[:8]
         file_ext = os.path.splitext(original_filename)[1].lower()
         file_size = os.path.getsize(file_path)
@@ -111,6 +202,7 @@ class RAGService:
         return meta
 
     def list_documents(self) -> List[DocumentMetadata]:
+        self._reconcile_with_vector_store()
         return list(self.documents_metadata.values())
 
     def get_document(self, document_id: str) -> Optional[DocumentMetadata]:
