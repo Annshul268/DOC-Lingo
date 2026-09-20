@@ -41,12 +41,32 @@ class ChromaVectorStore(BaseVectorStore):
         batch_size = 200
         for i in range(0, len(ids), batch_size):
             end = i + batch_size
-            self.collection.upsert(
-                ids=ids[i:end],
-                embeddings=embeddings[i:end],
-                documents=documents[i:end],
-                metadatas=metadatas[i:end]
-            )
+            try:
+                self.collection.upsert(
+                    ids=ids[i:end],
+                    embeddings=embeddings[i:end],
+                    documents=documents[i:end],
+                    metadatas=metadatas[i:end]
+                )
+            except Exception as e:
+                if "dimension" in str(e).lower():
+                    logger.warning(f"ChromaDB dimension mismatch ({e}). Recreating collection '{self.collection_name}'.")
+                    try:
+                        self.client.delete_collection(name=self.collection_name)
+                    except Exception:
+                        pass
+                    self.collection = self.client.get_or_create_collection(
+                        name=self.collection_name,
+                        metadata={"hnsw:space": "cosine"}
+                    )
+                    self.collection.upsert(
+                        ids=ids[i:end],
+                        embeddings=embeddings[i:end],
+                        documents=documents[i:end],
+                        metadatas=metadatas[i:end]
+                    )
+                else:
+                    raise
         logger.info(f"Successfully stored {len(chunks)} chunks in ChromaDB collection '{self.collection_name}'.")
 
     def search(
@@ -59,22 +79,34 @@ class ChromaVectorStore(BaseVectorStore):
         if document_id:
             where_filter = {"document_id": document_id}
             
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            where=where_filter,
-            include=["documents", "metadatas", "distances"]
-        )
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                where=where_filter,
+                include=["documents", "metadatas", "distances"]
+            )
+        except Exception as e:
+            if "dimension" in str(e).lower():
+                logger.warning(f"ChromaDB query dimension mismatch ({e}). Returning empty citations.")
+                return []
+            raise
         
         # Resilient fallback: if document_id was provided but returned 0 results (e.g. ID desync),
         # query without filter so available documents can still answer the question
         if document_id and (not results or not results.get("ids") or not results["ids"][0]):
             logger.warning(f"No chunks found with filter document_id='{document_id}', querying across available documents.")
-            results = self.collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                include=["documents", "metadatas", "distances"]
-            )
+            try:
+                results = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=top_k,
+                    include=["documents", "metadatas", "distances"]
+                )
+            except Exception as e:
+                if "dimension" in str(e).lower():
+                    logger.warning(f"ChromaDB fallback query dimension mismatch ({e}).")
+                    return []
+                raise
 
         citations: List[Citation] = []
         if not results or not results.get("ids") or not results["ids"][0]:

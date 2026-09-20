@@ -4,9 +4,6 @@ from typing import List
 from backend.app.services.embeddings.base import BaseEmbeddingService
 from backend.app.core.config import settings
 
-# Force offline mode if model is cached locally
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 logger = logging.getLogger(__name__)
 

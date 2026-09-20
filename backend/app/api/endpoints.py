@@ -17,6 +17,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
+        "embedding_provider": settings.EMBEDDING_PROVIDER,
         "embedding_model": settings.EMBEDDING_MODEL,
         "llm_provider": settings.LLM_PROVIDER
     }

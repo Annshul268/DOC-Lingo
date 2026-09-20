@@ -8,7 +8,7 @@ from backend.app.schemas.document import DocumentMetadata, DocumentChunk
 from backend.app.schemas.chat import Citation, ChatResponse
 from backend.app.services.ingestion.extractor import extract_text_from_pdf, extract_text_from_docx
 from backend.app.services.ingestion.chunker import process_and_chunk_document
-from backend.app.services.embeddings.sentence_transformer import SentenceTransformerEmbeddingService
+from backend.app.services.embeddings.factory import get_embedding_service
 from backend.app.services.retrieval.chroma_store import ChromaVectorStore
 from backend.app.services.retrieval.reranker import GenericRAGReranker
 from backend.app.services.generation.llm_factory import get_llm_service
@@ -21,8 +21,10 @@ class RAGService:
     _instance = None
 
     def __init__(self):
-        self.embedding_service = SentenceTransformerEmbeddingService()
-        self.vector_store = ChromaVectorStore()
+        self.embedding_service = get_embedding_service()
+        is_gemini = self.embedding_service.__class__.__name__ == "GeminiEmbeddingService"
+        collection_name = f"{settings.COLLECTION_NAME}_gemini" if is_gemini else settings.COLLECTION_NAME
+        self.vector_store = ChromaVectorStore(collection_name=collection_name)
         self.reranker = GenericRAGReranker()
         self.llm_service = get_llm_service()
         self.registry_file = os.path.join(settings.BASE_DIR, "data", "documents_registry.json")

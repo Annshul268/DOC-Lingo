@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx"]
     
     # Embedding Configuration
+    # Provider: "auto" | "gemini" | "sentence-transformers"
+    EMBEDDING_PROVIDER: str = "auto"
     # BAAI/bge-m3 or sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
     EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     EMBEDDING_DEVICE: str = "cpu"
