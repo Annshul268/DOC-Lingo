@@ -182,7 +182,8 @@ def process_and_chunk_document(
     filename: str,
     pages_data: List[Dict[str, Any]],
     chunk_size: int = None,
-    chunk_overlap: int = None
+    chunk_overlap: int = None,
+    user_id: str = "default_user"
 ) -> List[DocumentChunk]:
     """
     Converts page-level extracted data into granular, page-aware, structure-preserving DocumentChunks.
@@ -202,6 +203,7 @@ def process_and_chunk_document(
             chunk_obj = DocumentChunk(
                 chunk_id=f"{document_id}_p{page_num}_c{global_chunk_idx}",
                 document_id=document_id,
+                user_id=user_id,
                 filename=filename,
                 page_number=page_num,
                 chunk_index=global_chunk_idx,

@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatArea } from '@/components/ChatArea';
-import { DocumentMetadata, Message, Language, ChatSession } from '@/types';
+import { DocumentMetadata, Message, Language, ChatSession, User } from '@/types';
 import { api } from '@/lib/api';
+import { auth } from '@/lib/auth';
 import { 
   loadSessions, 
   saveSessions, 
@@ -15,6 +16,7 @@ import {
 } from '@/lib/chatStorage';
 
 export default function Home() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -22,46 +24,63 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load documents and chat sessions on mount
+  // Initialize or restore active user on mount
   useEffect(() => {
-    loadDocuments();
+    async function initUserAndWorkspace() {
+      let user = auth.getUser();
+      const token = auth.getToken();
 
-    // Load persisted sessions
-    const storedSessions = loadSessions();
-    const storedActiveId = loadActiveSessionId();
+      if (!user || !token) {
+        try {
+          const authData = await api.createGuestSession();
+          user = authData.user;
+        } catch (err) {
+          console.error('Failed to create initial guest session:', err);
+        }
+      }
 
-    if (storedSessions.length > 0) {
-      setSessions(storedSessions);
-      const validActive = storedSessions.find(s => s.id === storedActiveId);
-      setActiveSessionId(validActive ? validActive.id : storedSessions[0].id);
-    } else {
-      // Initialize with a fresh conversation
-      const initialSession = createNewSession(null, 'auto', 'New Conversation');
-      setSessions([initialSession]);
-      setActiveSessionId(initialSession.id);
-      saveSessions([initialSession]);
-      saveActiveSessionId(initialSession.id);
+      setCurrentUser(user);
+
+      if (user) {
+        await loadDocumentsForUser();
+        const storedSessions = loadSessions(user.id);
+        const storedActiveId = loadActiveSessionId(user.id);
+
+        if (storedSessions.length > 0) {
+          setSessions(storedSessions);
+          const validActive = storedSessions.find(s => s.id === storedActiveId);
+          setActiveSessionId(validActive ? validActive.id : storedSessions[0].id);
+        } else {
+          const initialSession = createNewSession(null, 'auto', 'New Conversation');
+          setSessions([initialSession]);
+          setActiveSessionId(initialSession.id);
+          saveSessions([initialSession], user.id);
+          saveActiveSessionId(initialSession.id, user.id);
+        }
+      }
+      setIsInitialized(true);
     }
-    setIsInitialized(true);
+
+    initUserAndWorkspace();
   }, []);
 
-  // Save sessions to localStorage whenever sessions change (after initialization)
+  // Save sessions to localStorage namespaced by current user
   useEffect(() => {
-    if (!isInitialized) return;
-    saveSessions(sessions);
-  }, [sessions, isInitialized]);
+    if (!isInitialized || !currentUser) return;
+    saveSessions(sessions, currentUser.id);
+  }, [sessions, isInitialized, currentUser]);
 
   // Save activeSessionId whenever it changes
   useEffect(() => {
-    if (!isInitialized) return;
-    saveActiveSessionId(activeSessionId);
-  }, [activeSessionId, isInitialized]);
+    if (!isInitialized || !currentUser) return;
+    saveActiveSessionId(activeSessionId, currentUser.id);
+  }, [activeSessionId, isInitialized, currentUser]);
 
   const activeSession = useMemo(() => {
     return sessions.find(s => s.id === activeSessionId) || sessions[0] || null;
   }, [sessions, activeSessionId]);
 
-  const loadDocuments = async () => {
+  const loadDocumentsForUser = async () => {
     try {
       const data = await api.getDocuments();
       setDocuments(data.documents);
@@ -70,11 +89,36 @@ export default function Home() {
     }
   };
 
+  const handleUserChange = async (newUser: User) => {
+    setCurrentUser(newUser);
+    setDocuments([]);
+    try {
+      const data = await api.getDocuments();
+      setDocuments(data.documents);
+    } catch (err) {
+      console.error('Failed to load documents for switched user:', err);
+    }
+
+    const storedSessions = loadSessions(newUser.id);
+    const storedActiveId = loadActiveSessionId(newUser.id);
+    if (storedSessions.length > 0) {
+      setSessions(storedSessions);
+      const validActive = storedSessions.find(s => s.id === storedActiveId);
+      setActiveSessionId(validActive ? validActive.id : storedSessions[0].id);
+    } else {
+      const initialSession = createNewSession(null, 'auto', 'New Conversation');
+      setSessions([initialSession]);
+      setActiveSessionId(initialSession.id);
+      saveSessions([initialSession], newUser.id);
+      saveActiveSessionId(initialSession.id, newUser.id);
+    }
+  };
+
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
       await api.uploadDocument(file);
-      await loadDocuments();
+      await loadDocumentsForUser();
     } catch (err: any) {
       alert(`Upload error: ${err.message}`);
     } finally {
@@ -90,7 +134,7 @@ export default function Home() {
       setSessions(prev =>
         prev.map(s => (s.selectedDocId === id ? { ...s, selectedDocId: null } : s))
       );
-      await loadDocuments();
+      await loadDocumentsForUser();
     } catch (err: any) {
       alert(`Delete error: ${err.message}`);
     }
@@ -258,6 +302,8 @@ export default function Home() {
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
         onRenameSession={handleRenameSession}
+        currentUser={currentUser}
+        onUserChange={handleUserChange}
       />
       <ChatArea
         messages={activeSession ? activeSession.messages : []}

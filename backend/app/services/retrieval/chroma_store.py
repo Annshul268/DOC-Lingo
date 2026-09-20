@@ -28,6 +28,7 @@ class ChromaVectorStore(BaseVectorStore):
         documents = [chunk.text for chunk in chunks]
         metadatas = [
             {
+                "user_id": getattr(chunk, "user_id", "default_user"),
                 "document_id": chunk.document_id,
                 "filename": chunk.filename,
                 "page_number": chunk.page_number,
@@ -74,11 +75,20 @@ class ChromaVectorStore(BaseVectorStore):
         self,
         query_embedding: List[float],
         top_k: int = 4,
+        user_id: Optional[str] = None,
         document_id: Optional[str] = None
     ) -> List[Citation]:
-        where_filter = None
+        where_clauses = []
+        if user_id:
+            where_clauses.append({"user_id": user_id})
         if document_id:
-            where_filter = {"document_id": document_id}
+            where_clauses.append({"document_id": document_id})
+
+        where_filter = None
+        if len(where_clauses) == 1:
+            where_filter = where_clauses[0]
+        elif len(where_clauses) > 1:
+            where_filter = {"$and": where_clauses}
             
         try:
             results = self.collection.query(
@@ -94,13 +104,15 @@ class ChromaVectorStore(BaseVectorStore):
             raise
         
         # Resilient fallback: if document_id was provided but returned 0 results (e.g. ID desync),
-        # query without filter so available documents can still answer the question
+        # query strictly within the same user's documents. Never leak another user's chunks!
         if document_id and (not results or not results.get("ids") or not results["ids"][0]):
-            logger.warning(f"No chunks found with filter document_id='{document_id}', querying across available documents.")
+            fallback_filter = {"user_id": user_id} if user_id else None
+            logger.warning(f"No chunks found with filter document_id='{document_id}', querying within user documents (user_id='{user_id}').")
             try:
                 results = self.collection.query(
                     query_embeddings=[query_embedding],
                     n_results=top_k,
+                    where=fallback_filter,
                     include=["documents", "metadatas", "distances"]
                 )
             except Exception as e:
@@ -136,22 +148,29 @@ class ChromaVectorStore(BaseVectorStore):
             
         return citations
 
-    def delete_document(self, document_id: str) -> None:
-        self.collection.delete(where={"document_id": document_id})
-        logger.info(f"Deleted vectors for document {document_id}")
+    def delete_document(self, document_id: str, user_id: Optional[str] = None) -> None:
+        where = {"document_id": document_id}
+        if user_id:
+            where = {"$and": [{"document_id": document_id}, {"user_id": user_id}]}
+        self.collection.delete(where=where)
+        logger.info(f"Deleted vectors for document {document_id} (user_id={user_id})")
 
-    def list_document_ids(self) -> List[str]:
+    def list_document_ids(self, user_id: Optional[str] = None) -> List[str]:
         # Fetch metadata to see distinct document ids
-        results = self.collection.get(include=["metadatas"])
+        where = {"user_id": user_id} if user_id else None
+        results = self.collection.get(where=where, include=["metadatas"])
         if not results or not results.get("metadatas"):
             return []
         ids = set(m["document_id"] for m in results["metadatas"] if "document_id" in m)
         return list(ids)
 
-    def get_chunk(self, document_id: str, chunk_index: int) -> Optional[Citation]:
+    def get_chunk(self, document_id: str, chunk_index: int, user_id: Optional[str] = None) -> Optional[Citation]:
         try:
+            clauses = [{"document_id": document_id}, {"chunk_index": chunk_index}]
+            if user_id:
+                clauses.append({"user_id": user_id})
             results = self.collection.get(
-                where={"$and": [{"document_id": document_id}, {"chunk_index": chunk_index}]},
+                where={"$and": clauses},
                 include=["documents", "metadatas"]
             )
             if results and results.get("ids") and len(results["ids"]) > 0:

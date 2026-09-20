@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import shutil
 import logging
 from typing import List, Optional, Tuple, AsyncGenerator
 from backend.app.core.config import settings
@@ -34,7 +35,7 @@ class RAGService:
     def _reconcile_with_vector_store(self) -> None:
         """
         Reconciles in-memory and persisted metadata with the underlying ChromaDB vector store.
-        Ensures document IDs, chunk counts, and page counts always match indexed vectors.
+        Ensures document IDs, chunk counts, page counts, and user_id always match indexed vectors.
         """
         try:
             chroma_data = self.vector_store.collection.get(include=["metadatas"])
@@ -47,6 +48,7 @@ class RAGService:
                 fname = m.get("filename")
                 pnum = m.get("page_number", 1)
                 lang = m.get("language", "en")
+                uid = m.get("user_id", "legacy_unassigned")
                 if not did or not fname:
                     continue
                 if did not in chroma_docs:
@@ -54,7 +56,8 @@ class RAGService:
                         "filename": fname,
                         "pages": set(),
                         "chunk_count": 0,
-                        "language": lang
+                        "language": lang,
+                        "user_id": uid
                     }
                 chroma_docs[did]["pages"].add(pnum)
                 chroma_docs[did]["chunk_count"] += 1
@@ -64,10 +67,14 @@ class RAGService:
 
             for did, info in chroma_docs.items():
                 fname = info["filename"]
+                uid = info["user_id"]
                 if did in self.documents_metadata:
                     meta = self.documents_metadata[did]
                     if meta.chunk_count != info["chunk_count"]:
                         meta.chunk_count = info["chunk_count"]
+                        changed = True
+                    if not getattr(meta, "user_id", None):
+                        meta.user_id = uid
                         changed = True
                 elif fname in existing_by_fname:
                     old_meta = existing_by_fname[fname]
@@ -75,6 +82,7 @@ class RAGService:
                         del self.documents_metadata[old_meta.document_id]
                     new_meta = DocumentMetadata(
                         document_id=did,
+                        user_id=uid or getattr(old_meta, "user_id", "legacy_unassigned"),
                         filename=fname,
                         file_type=old_meta.file_type,
                         file_size_bytes=old_meta.file_size_bytes,
@@ -88,10 +96,13 @@ class RAGService:
                     changed = True
                 else:
                     ext = os.path.splitext(fname)[1].lower().replace(".", "").upper()
-                    file_path = os.path.join(settings.UPLOAD_DIR, fname)
+                    file_path = os.path.join(settings.UPLOAD_DIR, uid, did, fname)
+                    if not os.path.exists(file_path):
+                        file_path = os.path.join(settings.UPLOAD_DIR, fname)
                     fsize = os.path.getsize(file_path) if os.path.exists(file_path) else 1024
                     new_meta = DocumentMetadata(
                         document_id=did,
+                        user_id=uid,
                         filename=fname,
                         file_type=ext or "PDF",
                         file_size_bytes=fsize,
@@ -120,7 +131,12 @@ class RAGService:
             try:
                 with open(self.registry_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    return {k: DocumentMetadata(**v) for k, v in data.items()}
+                    res = {}
+                    for k, v in data.items():
+                        if "user_id" not in v or not v["user_id"]:
+                            v["user_id"] = "legacy_unassigned"
+                        res[k] = DocumentMetadata(**v)
+                    return res
             except Exception as e:
                 logger.warning(f"Could not load documents_registry.json: {e}")
                 return {}
@@ -145,14 +161,20 @@ class RAGService:
             cls._instance = RAGService()
         return cls._instance
 
-    def process_file(self, file_path: str, original_filename: str) -> DocumentMetadata:
-        # If a document with the same filename already exists, remove its old chunks from vector store
+    def process_file(
+        self,
+        file_path: str,
+        original_filename: str,
+        user_id: str = "default_user",
+        document_id: Optional[str] = None
+    ) -> DocumentMetadata:
+        # If a document with the same filename already exists FOR THIS USER, remove its old chunks
         for old_id, old_meta in list(self.documents_metadata.items()):
-            if old_meta.filename == original_filename:
-                self.vector_store.delete_document(old_id)
+            if old_meta.user_id == user_id and old_meta.filename == original_filename:
+                self.vector_store.delete_document(old_id, user_id=user_id)
                 del self.documents_metadata[old_id]
 
-        doc_id = str(uuid.uuid4())[:8]
+        doc_id = document_id or str(uuid.uuid4())[:8]
         file_ext = os.path.splitext(original_filename)[1].lower()
         file_size = os.path.getsize(file_path)
 
@@ -172,7 +194,8 @@ class RAGService:
             filename=original_filename,
             pages_data=pages_data,
             chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP
+            chunk_overlap=settings.CHUNK_OVERLAP,
+            user_id=user_id
         )
 
         # Detect primary language of document from sample chunks
@@ -190,6 +213,7 @@ class RAGService:
 
         meta = DocumentMetadata(
             document_id=doc_id,
+            user_id=user_id,
             filename=original_filename,
             file_type=file_ext.replace(".", "").upper(),
             file_size_bytes=file_size,
@@ -203,23 +227,38 @@ class RAGService:
         self._save_persisted_metadata()
         return meta
 
-    def list_documents(self) -> List[DocumentMetadata]:
+    def list_documents(self, user_id: str = "default_user") -> List[DocumentMetadata]:
         self._reconcile_with_vector_store()
-        return list(self.documents_metadata.values())
+        return [doc for doc in self.documents_metadata.values() if doc.user_id == user_id]
 
-    def get_document(self, document_id: str) -> Optional[DocumentMetadata]:
-        return self.documents_metadata.get(document_id)
+    def get_document(self, document_id: str, user_id: str = "default_user") -> Optional[DocumentMetadata]:
+        doc = self.documents_metadata.get(document_id)
+        if not doc or doc.user_id != user_id:
+            return None
+        return doc
 
-    def delete_document(self, document_id: str) -> bool:
+    def delete_document(self, document_id: str, user_id: str = "default_user") -> bool:
         if document_id in self.documents_metadata:
             meta = self.documents_metadata[document_id]
-            self.vector_store.delete_document(document_id)
+            if meta.user_id != user_id:
+                logger.warning(f"Unauthorized deletion attempt for document {document_id} by user {user_id}")
+                return False
+
+            self.vector_store.delete_document(document_id, user_id=user_id)
             
-            # Clean up local file if present
-            file_path = os.path.join(settings.UPLOAD_DIR, meta.filename)
-            if os.path.exists(file_path):
+            # Clean up user's isolated local directory if present
+            user_doc_dir = os.path.join(settings.UPLOAD_DIR, user_id, document_id)
+            if os.path.exists(user_doc_dir):
                 try:
-                    os.remove(file_path)
+                    shutil.rmtree(user_doc_dir, ignore_errors=True)
+                except Exception:
+                    pass
+
+            # Legacy file cleanup
+            flat_file = os.path.join(settings.UPLOAD_DIR, meta.filename)
+            if os.path.exists(flat_file):
+                try:
+                    os.remove(flat_file)
                 except Exception:
                     pass
                     
@@ -253,6 +292,7 @@ class RAGService:
     async def answer_query(
         self,
         query: str,
+        user_id: str = "default_user",
         document_id: Optional[str] = None,
         target_language: str = "auto"
     ) -> Tuple[str, List[Citation], str, str]:
@@ -264,23 +304,36 @@ class RAGService:
         if final_lang not in ["en", "hi", "hinglish"]:
             final_lang = "en"
 
-        # 3. Embed query using multilingual embedding
+        # 3. Ownership check if specific document requested
+        if document_id:
+            doc = self.get_document(document_id, user_id=user_id)
+            if not doc:
+                logger.warning(f"User '{user_id}' requested query against unauthorized/nonexistent doc '{document_id}'")
+                return (
+                    "The requested document was not found in your workspace.",
+                    [],
+                    detected_lang,
+                    final_lang
+                )
+
+        # 4. Embed query using multilingual embedding
         query_vector = self.embedding_service.embed_query(query)
 
-        # 4. Search candidate pool in ChromaDB with configured RETRIEVAL_K
+        # 5. Search candidate pool in ChromaDB strictly within this user's scope
         candidate_k = getattr(settings, "RETRIEVAL_K", 16)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
+            user_id=user_id,
             document_id=document_id
         )
 
-        logger.info(f"=== RAG QUERY: '{query}' [Lang: {detected_lang} -> {final_lang}] ===")
+        logger.info(f"=== RAG QUERY: '{query}' [User: {user_id}] [Lang: {detected_lang} -> {final_lang}] ===")
         logger.info(f"Retrieved {len(candidates)} candidate chunks from ChromaDB (pool size {candidate_k})")
         for idx, c in enumerate(candidates[:6], 1):
             logger.debug(f"  Candidate {idx}: P{c.page_number} C{c.chunk_index} [Score: {c.similarity_score:.4f}] Sec: {c.section_heading} | Text: {repr(c.text_snippet[:80])}")
 
-        # 5. Rerank candidates using intent-aware multi-factor scoring
+        # 6. Rerank candidates using intent-aware multi-factor scoring
         final_k = getattr(settings, "FINAL_CONTEXT_K", settings.TOP_K)
         relevant_citations = self.reranker.rerank(
             query=query,
@@ -292,7 +345,7 @@ class RAGService:
         for idx, c in enumerate(relevant_citations, 1):
             logger.info(f"  Selected {idx}: P{c.page_number} C{c.chunk_index} [Score: {c.similarity_score:.4f}] Sec: {c.section_heading} | Text: {repr(c.text_snippet[:100])}")
 
-        # 6. LLM Grounded Generation
+        # 7. LLM Grounded Generation
         answer = await self.llm_service.generate_response(
             query=query,
             context_chunks=relevant_citations,
@@ -313,6 +366,7 @@ class RAGService:
     async def stream_query(
         self,
         query: str,
+        user_id: str = "default_user",
         document_id: Optional[str] = None,
         target_language: str = "auto"
     ) -> Tuple[AsyncGenerator[str, None], List[Citation], str, str]:
@@ -321,11 +375,19 @@ class RAGService:
         if final_lang not in ["en", "hi", "hinglish"]:
             final_lang = "en"
 
+        if document_id:
+            doc = self.get_document(document_id, user_id=user_id)
+            if not doc:
+                async def empty_stream():
+                    yield "The requested document was not found in your workspace."
+                return empty_stream(), [], detected_lang, final_lang
+
         query_vector = self.embedding_service.embed_query(query)
         candidate_k = getattr(settings, "RETRIEVAL_K", 16)
         candidates = self.vector_store.search(
             query_embedding=query_vector,
             top_k=candidate_k,
+            user_id=user_id,
             document_id=document_id
         )
 

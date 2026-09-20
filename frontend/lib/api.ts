@@ -1,4 +1,5 @@
-import { DocumentMetadata, Citation, Language } from '@/types';
+import { DocumentMetadata, Citation, Language, AuthResponse, User } from '@/types';
+import { auth } from '@/lib/auth';
 
 const getBaseUrl = (): string => {
   let url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
@@ -9,6 +10,15 @@ const getBaseUrl = (): string => {
 };
 
 const API_BASE_URL = getBaseUrl();
+
+const getAuthHeaders = (extra: Record<string, string> = {}): Record<string, string> => {
+  const headers: Record<string, string> = { ...extra };
+  const token = auth.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 export interface ChatResponse {
   answer: string;
@@ -27,12 +37,72 @@ export const api = {
     return res.json();
   },
 
+  // --- Authentication ---
+  async createGuestSession(username?: string): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE_URL}/auth/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username || null }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to create guest session' }));
+      throw new Error(err.detail || 'Guest session creation failed');
+    }
+    const data: AuthResponse = await res.json();
+    auth.saveAuth(data);
+    return data;
+  },
+
+  async login(username: string, password: string): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Login failed' }));
+      throw new Error(err.detail || 'Invalid username or password');
+    }
+    const data: AuthResponse = await res.json();
+    auth.saveAuth(data);
+    return data;
+  },
+
+  async register(username: string, password: string, email?: string): Promise<AuthResponse> {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, email: email || null }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+      throw new Error(err.detail || 'Registration failed');
+    }
+    const data: AuthResponse = await res.json();
+    auth.saveAuth(data);
+    return data;
+  },
+
+  async getMe(): Promise<User> {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to get user profile');
+    return res.json();
+  },
+
+  // --- Documents ---
   async uploadDocument(file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
 
+    const headers = getAuthHeaders();
+    // Do NOT set Content-Type header manually for FormData so browser computes boundary
+    delete headers['Content-Type'];
+
     const res = await fetch(`${API_BASE_URL}/documents/upload`, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
@@ -44,7 +114,9 @@ export const api = {
   },
 
   async getDocuments(): Promise<{ documents: DocumentMetadata[]; total: number }> {
-    const res = await fetch(`${API_BASE_URL}/documents`);
+    const res = await fetch(`${API_BASE_URL}/documents`, {
+      headers: getAuthHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to fetch documents');
     return res.json();
   },
@@ -52,10 +124,12 @@ export const api = {
   async deleteDocument(documentId: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to delete document');
   },
 
+  // --- Chat ---
   async askQuestion(
     query: string,
     documentId: string | null = null,
@@ -63,7 +137,7 @@ export const api = {
   ): Promise<ChatResponse> {
     const res = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         query,
         document_id: documentId,
@@ -90,7 +164,7 @@ export const api = {
     try {
       const res = await fetch(`${API_BASE_URL}/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           query,
           document_id: documentId,

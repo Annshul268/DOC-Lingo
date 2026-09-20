@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
 from backend.app.api.endpoints import router as api_router
+from backend.app.api.auth_endpoints import router as auth_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -18,6 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(auth_router)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router)  # Fallback for callers omitting /api prefix
 

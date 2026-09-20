@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE_MB: int = 25
     ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx"]
     
+    # Authentication & Multi-User Security
+    JWT_SECRET: str = "doc-lingo-super-secure-jwt-secret-key-2026"
+    TOKEN_EXPIRE_HOURS: int = 720  # 30 days
+    USER_DATA_FILE: str = os.path.join(BASE_DIR, "data", "users_registry.json")
+    
     # Embedding Configuration
     # Provider: "auto" | "gemini" | "sentence-transformers"
     EMBEDDING_PROVIDER: str = "auto"

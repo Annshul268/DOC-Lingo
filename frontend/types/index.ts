@@ -1,7 +1,21 @@
 export type Language = 'auto' | 'en' | 'hi' | 'hinglish';
 
+export interface User {
+  id: string;
+  username: string;
+  email?: string | null;
+  is_guest: boolean;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
 export interface DocumentMetadata {
   document_id: string;
+  user_id?: string;
   filename: string;
   file_type: string;
   file_size_bytes: number;

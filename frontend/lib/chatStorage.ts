@@ -1,12 +1,17 @@
 import { ChatSession, Language } from '@/types';
 
-const STORAGE_KEY_SESSIONS = 'doc_lingo_chat_sessions_v1';
-const STORAGE_KEY_ACTIVE_ID = 'doc_lingo_active_session_id';
+function getSessionKey(userId?: string | null): string {
+  return userId ? `doc_lingo_chat_sessions_${userId}` : 'doc_lingo_chat_sessions_v1';
+}
 
-export function loadSessions(): ChatSession[] {
+function getActiveKey(userId?: string | null): string {
+  return userId ? `doc_lingo_active_session_${userId}` : 'doc_lingo_active_session_id';
+}
+
+export function loadSessions(userId?: string | null): ChatSession[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_SESSIONS);
+    const raw = localStorage.getItem(getSessionKey(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -16,31 +21,32 @@ export function loadSessions(): ChatSession[] {
   }
 }
 
-export function saveSessions(sessions: ChatSession[]): void {
+export function saveSessions(sessions: ChatSession[], userId?: string | null): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_SESSIONS, JSON.stringify(sessions));
+    localStorage.setItem(getSessionKey(userId), JSON.stringify(sessions));
   } catch (err) {
     console.error('Failed to save chat sessions to localStorage:', err);
   }
 }
 
-export function loadActiveSessionId(): string | null {
+export function loadActiveSessionId(userId?: string | null): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem(STORAGE_KEY_ACTIVE_ID);
+    return localStorage.getItem(getActiveKey(userId));
   } catch (err) {
     return null;
   }
 }
 
-export function saveActiveSessionId(id: string | null): void {
+export function saveActiveSessionId(id: string | null, userId?: string | null): void {
   if (typeof window === 'undefined') return;
   try {
+    const key = getActiveKey(userId);
     if (id) {
-      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, id);
+      localStorage.setItem(key, id);
     } else {
-      localStorage.removeItem(STORAGE_KEY_ACTIVE_ID);
+      localStorage.removeItem(key);
     }
   } catch (err) {
     console.error('Failed to save active session ID:', err);

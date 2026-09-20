@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { DocumentMetadata, ChatSession } from '@/types';
+import { DocumentMetadata, ChatSession, User } from '@/types';
 import { groupSessionsByDate } from '@/lib/chatStorage';
+import { api } from '@/lib/api';
+import { auth } from '@/lib/auth';
 import { 
   FileText, 
   UploadCloud, 
@@ -18,7 +20,12 @@ import {
   Pencil,
   Check,
   X,
-  Clock
+  Clock,
+  User as UserIcon,
+  LogIn,
+  UserPlus,
+  Shield,
+  RefreshCw
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,6 +41,8 @@ interface SidebarProps {
   onNewChat: () => void;
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, newTitle: string) => void;
+  currentUser?: User | null;
+  onUserChange?: (user: User) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,13 +58,106 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   onDeleteSession,
   onRenameSession,
+  currentUser,
+  onUserChange,
 }) => {
   const [activeTab, setActiveTab] = useState<'chats' | 'documents'>('chats');
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editTitleValue, setEditTitleValue] = useState('');
 
+  // Auth & Multi-User State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'switch' | 'login' | 'register'>('switch');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  const handleDownload = async (doc: DocumentMetadata, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      let baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
+      if (!baseUrl.endsWith('/api')) {
+        baseUrl = `${baseUrl}/api`;
+      }
+      const token = auth.getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${baseUrl}/documents/${doc.document_id}/download`, { headers });
+      if (!res.ok) throw new Error('Download failed or file not found');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Download error: ${err.message}`);
+    }
+  };
+
+  const handleCreateNewGuest = async () => {
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const res = await api.createGuestSession();
+      if (onUserChange) onUserChange(res.user);
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'Failed to create guest workspace');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usernameInput.trim() || !passwordInput.trim()) {
+      setAuthError('Please provide both username and password');
+      return;
+    }
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const res = await api.login(usernameInput.trim(), passwordInput.trim());
+      if (onUserChange) onUserChange(res.user);
+      setUsernameInput('');
+      setPasswordInput('');
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'Login failed');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!usernameInput.trim() || !passwordInput.trim()) {
+      setAuthError('Please provide both username and password');
+      return;
+    }
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    try {
+      const res = await api.register(usernameInput.trim(), passwordInput.trim());
+      if (onUserChange) onUserChange(res.user);
+      setUsernameInput('');
+      setPasswordInput('');
+      setIsAuthModalOpen(false);
+    } catch (err: any) {
+      setAuthError(err.message || 'Registration failed');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -230,7 +332,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Documents</span>
+            <span>My Documents</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
               {documents.length}
             </span>
@@ -402,15 +504,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       {doc.status === 'error' && (
                         <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
                       )}
-                      <a
-                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/documents/${doc.document_id}/download`}
-                        download={doc.filename}
-                        onClick={(e) => e.stopPropagation()}
+                      <button
+                        onClick={(e) => handleDownload(doc, e)}
                         className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-opacity"
                         title="Download original file"
                       >
                         <Download className="w-3.5 h-3.5" />
-                      </a>
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -430,14 +530,200 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {/* Footer Info */}
-      <div className="p-3 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Vector Store Active
-        </span>
-        <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">ChromaDB</span>
+      {/* Footer Info & User Workspace Status */}
+      <div className="p-3 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col gap-2">
+        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+              <UserIcon className="w-3 h-3" />
+            </div>
+            <div className="truncate">
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{currentUser?.username || 'Guest'}</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1">
+                ({currentUser?.is_guest ? 'Guest' : 'Account'})
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setAuthError(null);
+              setIsAuthModalOpen(true);
+            }}
+            className="text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+          >
+            Switch User
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+          <span className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            Isolated Workspace
+          </span>
+          <span className="font-mono">ChromaDB</span>
+        </div>
       </div>
+
+      {/* User Switcher / Auth Modal */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-sm w-full p-5 border border-slate-200 dark:border-slate-800 shadow-xl animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                  {authMode === 'switch' && 'Switch Workspace'}
+                  {authMode === 'login' && 'Log In to Account'}
+                  {authMode === 'register' && 'Create New Account'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAuthModalOpen(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {authError && (
+              <div className="mt-3 p-2 text-xs rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                {authError}
+              </div>
+            )}
+
+            {authMode === 'switch' && (
+              <div className="mt-4 space-y-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg text-xs">
+                  <div className="text-slate-500 dark:text-slate-400">Current Active Workspace:</div>
+                  <div className="font-bold text-slate-800 dark:text-slate-100 mt-0.5">{currentUser?.username || 'Guest'}</div>
+                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">ID: {currentUser?.id}</div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isAuthSubmitting}
+                  onClick={handleCreateNewGuest}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-semibold border border-blue-200 dark:border-blue-800 transition-colors"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAuthSubmitting ? 'animate-spin' : ''}`} />
+                  Create Clean Guest Workspace
+                </button>
+
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError(null);
+                      setAuthMode('login');
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    Log In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError(null);
+                      setAuthMode('register');
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Register
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {authMode === 'login' && (
+              <form onSubmit={handleLoginSubmit} className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    required
+                    placeholder="e.g. user_alice"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    required
+                    placeholder="••••••••"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('switch')}
+                    className="flex-1 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAuthSubmitting}
+                    className="flex-1 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                  >
+                    {isAuthSubmitting ? 'Logging in...' : 'Log In'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {authMode === 'register' && (
+              <form onSubmit={handleRegisterSubmit} className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    required
+                    placeholder="e.g. user_bob"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    required
+                    placeholder="Min. 4 characters"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('switch')}
+                    className="flex-1 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAuthSubmitting}
+                    className="flex-1 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                  >
+                    {isAuthSubmitting ? 'Registering...' : 'Register'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

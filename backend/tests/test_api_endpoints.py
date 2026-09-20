@@ -13,13 +13,20 @@ def test_health():
     assert "DOC-Lingo" in data["app_name"]
 
 def test_upload_and_chat_e2e():
+    # Obtain auth session token
+    auth_res = client.post("/api/auth/session", json={"username": "test_runner"})
+    assert auth_res.status_code == 200
+    token = auth_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
     fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
     pdf_path = os.path.join(fixtures_dir, "os_deadlock_sample.pdf")
     
     with open(pdf_path, "rb") as f:
         response = client.post(
             "/api/documents/upload",
-            files={"file": ("test_os_deadlock.pdf", f, "application/pdf")}
+            files={"file": ("test_os_deadlock.pdf", f, "application/pdf")},
+            headers=headers
         )
     assert response.status_code == 200
     doc_data = response.json()
@@ -28,7 +35,7 @@ def test_upload_and_chat_e2e():
     assert doc_data["chunk_count"] >= 2
 
     # Get documents
-    list_res = client.get("/api/documents")
+    list_res = client.get("/api/documents", headers=headers)
     assert list_res.status_code == 200
     assert list_res.json()["total"] >= 1
 
@@ -39,7 +46,8 @@ def test_upload_and_chat_e2e():
             "query": "Deadlock kya hota hai?",
             "document_id": doc_id,
             "target_language": "hinglish"
-        }
+        },
+        headers=headers
     )
     assert chat_res.status_code == 200
     chat_data = chat_res.json()
@@ -49,10 +57,10 @@ def test_upload_and_chat_e2e():
     assert chat_data["target_language"] == "hinglish"
 
     # Download test
-    download_res = client.get(f"/api/documents/{doc_id}/download")
+    download_res = client.get(f"/api/documents/{doc_id}/download", headers=headers)
     assert download_res.status_code == 200
     assert len(download_res.content) > 0
 
     # Clean up document
-    del_res = client.delete(f"/api/documents/{doc_id}")
+    del_res = client.delete(f"/api/documents/{doc_id}", headers=headers)
     assert del_res.status_code == 200

@@ -1,10 +1,13 @@
 import os
+import uuid
 import shutil
 import json
 from typing import Optional, List
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from fastapi.responses import StreamingResponse, FileResponse
 from backend.app.core.config import settings
+from backend.app.core.auth import get_current_user
+from backend.app.schemas.auth import User
 from backend.app.schemas.document import DocumentUploadResponse, DocumentListResponse, DocumentMetadata
 from backend.app.schemas.chat import ChatRequest, ChatResponse
 from backend.app.services.rag_service import RAGService
@@ -23,7 +26,10 @@ async def health_check():
     }
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
     # 1. Validate file extension
     original_filename = sanitize_filename(file.filename or "unknown_file")
     ext = os.path.splitext(original_filename)[1].lower()
@@ -33,8 +39,12 @@ async def upload_document(file: UploadFile = File(...)):
             detail=f"Unsupported file format '{ext}'. Allowed formats: {settings.ALLOWED_EXTENSIONS}"
         )
 
-    # 2. Save locally and validate size
-    temp_path = os.path.join(settings.UPLOAD_DIR, original_filename)
+    # 2. Save into user-isolated directory data/uploads/<user_id>/<doc_id>/<filename>
+    doc_id = str(uuid.uuid4())[:8]
+    user_doc_dir = os.path.join(settings.UPLOAD_DIR, current_user.id, doc_id)
+    os.makedirs(user_doc_dir, exist_ok=True)
+    temp_path = os.path.join(user_doc_dir, original_filename)
+
     try:
         contents = await file.read()
         if len(contents) > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
@@ -52,10 +62,15 @@ async def upload_document(file: UploadFile = File(...)):
             detail=f"Failed to save file: {str(e)}"
         )
 
-    # 3. Process and ingest
+    # 3. Process and ingest with user ownership
     try:
         rag = RAGService.get_instance()
-        meta = rag.process_file(temp_path, original_filename)
+        meta = rag.process_file(
+            file_path=temp_path,
+            original_filename=original_filename,
+            user_id=current_user.id,
+            document_id=doc_id
+        )
         return DocumentUploadResponse(
             document_id=meta.document_id,
             filename=meta.filename,
@@ -71,27 +86,31 @@ async def upload_document(file: UploadFile = File(...)):
         )
 
 @router.get("/documents", response_model=DocumentListResponse)
-async def list_documents():
+async def list_documents(current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
-    docs = rag.list_documents()
+    docs = rag.list_documents(user_id=current_user.id)
     return DocumentListResponse(documents=docs, total=len(docs))
 
 @router.get("/documents/{document_id}", response_model=DocumentMetadata)
-async def get_document(document_id: str):
+async def get_document(document_id: str, current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
-    doc = rag.get_document(document_id)
+    doc = rag.get_document(document_id, user_id=current_user.id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return doc
 
 @router.get("/documents/{document_id}/download")
-async def download_document(document_id: str):
+async def download_document(document_id: str, current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
-    doc = rag.get_document(document_id)
+    doc = rag.get_document(document_id, user_id=current_user.id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     
-    file_path = os.path.join(settings.UPLOAD_DIR, doc.filename)
+    # Check user-isolated path first, then flat legacy path
+    file_path = os.path.join(settings.UPLOAD_DIR, current_user.id, doc.document_id, doc.filename)
+    if not os.path.exists(file_path):
+        file_path = os.path.join(settings.UPLOAD_DIR, doc.filename)
+        
     if not os.path.exists(file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found on disk")
         
@@ -102,18 +121,27 @@ async def download_document(document_id: str):
     )
 
 @router.delete("/documents/{document_id}")
-async def delete_document(document_id: str):
+async def delete_document(document_id: str, current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
-    success = rag.delete_document(document_id)
+    success = rag.delete_document(document_id, user_id=current_user.id)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return {"message": "Document deleted successfully", "document_id": document_id}
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
+    if request.document_id:
+        doc = rag.get_document(request.document_id, user_id=current_user.id)
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document '{request.document_id}' not found in your workspace"
+            )
+
     answer, citations, detected_lang, target_lang = await rag.answer_query(
         query=request.query,
+        user_id=current_user.id,
         document_id=request.document_id,
         target_language=request.target_language.value if request.target_language else "auto"
     )
@@ -126,16 +154,24 @@ async def chat(request: ChatRequest):
     )
 
 @router.post("/chat/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, current_user: User = Depends(get_current_user)):
     rag = RAGService.get_instance()
+    if request.document_id:
+        doc = rag.get_document(request.document_id, user_id=current_user.id)
+        if not doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document '{request.document_id}' not found in your workspace"
+            )
+
     stream_gen, citations, detected_lang, target_lang = await rag.stream_query(
         query=request.query,
+        user_id=current_user.id,
         document_id=request.document_id,
         target_language=request.target_language.value if request.target_language else "auto"
     )
     
     async def sse_generator():
-        # First send citations event
         citations_data = [c.model_dump() for c in citations]
         init_payload = {
             "type": "meta",
@@ -145,7 +181,6 @@ async def chat_stream(request: ChatRequest):
         }
         yield f"data: {json.dumps(init_payload)}\n\n"
         
-        # Stream answer chunks
         async for token in stream_gen:
             chunk_payload = {"type": "token", "token": token}
             yield f"data: {json.dumps(chunk_payload)}\n\n"

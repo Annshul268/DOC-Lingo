@@ -5,6 +5,7 @@ from datetime import datetime
 class DocumentChunk(BaseModel):
     chunk_id: str
     document_id: str
+    user_id: str = "default_user"
     filename: str
     page_number: int
     chunk_index: int
@@ -14,6 +15,7 @@ class DocumentChunk(BaseModel):
 
 class DocumentMetadata(BaseModel):
     document_id: str
+    user_id: str = "default_user"
     filename: str
     file_type: str
     file_size_bytes: int
