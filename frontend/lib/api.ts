@@ -1,6 +1,14 @@
 import { DocumentMetadata, Citation, Language } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const getBaseUrl = (): string => {
+  let url = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').trim().replace(/\/+$/, '');
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
+const API_BASE_URL = getBaseUrl();
 
 export interface ChatResponse {
   answer: string;

@@ -103,7 +103,7 @@ export const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
                     {/* Excerpt text */}
                     <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 bg-slate-50/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-slate-200/70 dark:border-slate-800 whitespace-pre-wrap font-normal">
-                      "{cite.text_snippet.trim()}"
+                      &quot;{cite.text_snippet.trim()}&quot;
                     </div>
                   </div>
                 ))}
