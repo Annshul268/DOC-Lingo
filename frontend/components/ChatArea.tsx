@@ -206,23 +206,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const selectedDoc = documents.find(d => d.document_id === selectedDocId);
 
-  // 4 Curated prompt cards matching the Quillr 2x2 grid
+  // 4 Curated generic prompt cards matching the home screen requirement
   const suggestionCards = [
     {
-      title: 'Operating Systems & Deadlocks',
-      description: 'What are the four necessary conditions for deadlock?',
+      title: 'Ask anything about your document',
+      description: 'What are the main topics and key takeaways from this document?',
     },
     {
-      title: 'Hinglish Deep Dive',
-      description: 'Round robin scheduling mechanism kaise kaam karta hai?',
+      title: 'Summarize a section',
+      description: 'Provide a concise summary of the key sections and conclusions',
     },
     {
-      title: 'हिंदी में विस्तृत सारांश',
-      description: 'दस्तावेज़ के मुख्य सिद्धांतों और कार्यों का विवरण दें',
+      title: 'Find specific information',
+      description: 'Locate specific facts, figures, definitions, or instructions',
     },
     {
-      title: 'Verified Source Citations',
-      description: 'Cite exact page numbers and quotes from uploaded documents',
+      title: 'Explain something simply',
+      description: 'Break down complex concepts from the document into simple terms',
     },
   ];
 
@@ -239,13 +239,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* Top Header & Options Bar */}
       <header className="border-b border-stone-200/80 dark:border-stone-800 bg-[#fffdf9]/95 dark:bg-[#141210]/95 px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 z-20 shrink-0 backdrop-blur-sm">
-        {/* Left Side: Sidebar Toggle, Conversation Title, Upload Button, Context Dropdown */}
+        {/* Left Side: Sidebar Toggle, Conversation Title, Context Dropdown */}
         <div className="flex items-center flex-wrap gap-2.5 min-w-0">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
               className="p-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-stone-800 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 transition-colors shrink-0"
-              title={isSidebarOpen ? 'Hide Sidebar' : 'Open Sidebar'}
+              title={isSidebarOpen ? 'Collapse sidebar' : 'Open sidebar'}
             >
               <PanelLeft className="w-4 h-4" />
             </button>
@@ -290,20 +290,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           )}
 
           <div className="hidden sm:block h-4 w-px bg-stone-200 dark:bg-stone-800 shrink-0" />
-
-          {/* Upload PDF / DOCX Button */}
-          <button
-            onClick={() => heroFileInputRef.current?.click()}
-            disabled={isUploading}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-dashed border-stone-300 dark:border-stone-700 hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/30 text-stone-700 dark:text-stone-300 text-xs transition-colors shrink-0"
-          >
-            {isUploading ? (
-              <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-            ) : (
-              <UploadCloud className="w-3.5 h-3.5 text-amber-500" />
-            )}
-            <span>{isUploading ? 'Indexing...' : 'Upload PDF / DOCX'}</span>
-          </button>
 
           {/* Context Dropdown */}
           <div className="relative shrink-0" ref={dropdownRef}>

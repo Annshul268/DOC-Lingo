@@ -6,6 +6,7 @@ import { ChatArea } from '@/components/ChatArea';
 import { DocumentMetadata, Message, Language, ChatSession, User } from '@/types';
 import { api, ensureToken } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { DocumentSelectModal } from '@/components/DocumentSelectModal';
 import { 
   loadSessions, 
   saveSessions, 
@@ -23,8 +24,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isDocSelectModalOpen, setIsDocSelectModalOpen] = useState(false);
 
   // Initialize or restore active user on mount
   useEffect(() => {
@@ -133,7 +135,13 @@ export default function Home() {
   };
 
   const handleNewChat = () => {
-    const newSession = createNewSession(null, 'auto', 'New Conversation');
+    setIsDocSelectModalOpen(true);
+  };
+
+  const handleStartChatWithDoc = (docId: string | null) => {
+    const docName = docId ? documents.find(d => d.document_id === docId)?.filename : null;
+    const newTitle = docName ? `Chat: ${docName}` : 'New Conversation';
+    const newSession = createNewSession(docId, 'auto', newTitle);
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
   };
@@ -322,6 +330,14 @@ export default function Home() {
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         onNewChat={handleNewChat}
+      />
+      <DocumentSelectModal
+        isOpen={isDocSelectModalOpen}
+        onClose={() => setIsDocSelectModalOpen(false)}
+        documents={documents}
+        onSelectDocument={handleStartChatWithDoc}
+        onUpload={handleUpload}
+        isUploading={isUploading}
       />
     </div>
   );
